@@ -9,4 +9,4 @@ Get chess moves from Stockfish and display them in Roblox
 
 
 > [!NOTE]
-> This app is for educational purposes only. By using this app, any consequences of using it are your own responsibility.
+> This app is for educational purposes only. By using this app you agree that all responsibilities fall upon you.
