@@ -7,3 +7,6 @@ edition = "2021"
 actix-web = "4"
 serde = {version = "1.0.210", features = ["derive"]}
 inline_colorization = "0.1.6"
+rfd = "0.15.0"
+sysinfo = "0.31.4"
+thousands = "0.2.0"
