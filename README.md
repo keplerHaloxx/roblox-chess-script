@@ -2,6 +2,8 @@
 
 Get chess moves from Stockfish and display them in Roblox
 
+While the server can be used for any application. The Roblox script is specifically made for [this game](https://www.roblox.com/games/6222531507/CHESS). No other Chess roblox game will be supported.
+
 ## How to Run
 
 > -   Download [Stockfish](https://stockfishchess.org/download/) ('Faster' version is recommended).
