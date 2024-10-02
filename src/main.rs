@@ -4,14 +4,20 @@ mod simple_logger;
 mod uci;
 
 use std::{
-    env,
+    fs::File,
     io::{stdin, stdout, Write},
+    path::Path,
     process::exit,
     sync::Arc,
     time::Duration,
 };
 
-use actix_web::{get, rt::time::sleep, web, App, HttpServer, Responder};
+use actix_web::{
+    get,
+    rt::time::{sleep, Instant},
+    web, App, HttpServer, Responder,
+};
+use inline_colorization::*;
 use serde::Deserialize;
 use uci::lib::Engine;
 
@@ -19,49 +25,23 @@ const PORT: u16 = 3000;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    println!("There's like to safety checks here so don't input anything stupid so the app doesn't crash.");
-    println!("You can leave blank options you don't know about or don't want to touch.");
-    println!("Do not leave 'stockfish_path' blank as that is needed.\n");
+    println!("Ensure you input valid options to prevent crashes.");
+    println!("Leave options blank if unsure.");
+    println!("UNLESS stockfish.exe is in the current folder don't leave the first one empty.\n");
 
-    let mut stockfish_path = get_input(
-        "Enter stockfish path (defaults to: './stockfish.exe')\n'./' means current folder",
+    let stockfish_path = get_file_name_with_default(
+        "Enter stockfish.exe path (defaults to: './stockfish.exe')\n'./' means current folder",
+        "./stockfish.exe",
     );
     let hash = get_input("Enter hash amount");
     let threads = get_input("Enter threads amount");
     let syzygy_path = get_input("Enter Syzygy path");
 
-    // init engine
-    if stockfish_path.is_empty() {
-        stockfish_path = "./stockfish.exe".to_string();
-    }
+    let engine = initialize_engine(&stockfish_path, &hash, &threads, &syzygy_path);
 
-    let engine = Engine::new(&stockfish_path);
-    // quick error check
-    if engine.is_err() {
-        qerror!("Could not start engine: {}", engine.err().unwrap());
-        exit(1);
-    }
-
-    let engine = engine.unwrap();
-
-    // engine options
-    if !hash.is_empty() {
-        engine.set_option("Hash", &hash).unwrap();
-    }
-    if !threads.is_empty() {
-        // engine
-        //     .command(&format!("setoption name Threads value {}", threads))
-        //     .unwrap();
-        engine.set_option("Threads", &threads).unwrap();
-    }
-    if !syzygy_path.is_empty() {
-        engine.set_option("SyzygyPath", &syzygy_path).unwrap();
-    }
-
-    // share engine data across app
     let engine_data = web::Data::new(Arc::new(engine));
 
-    qinfo!("Starting server at http://localhost:{}", PORT);
+    println!("{color_bright_green}Starting server at http://localhost:{PORT}{color_reset}");
 
     HttpServer::new(move || App::new().app_data(engine_data.clone()).service(solve))
         .bind(("127.0.0.1", PORT))?
@@ -69,14 +49,57 @@ async fn main() -> std::io::Result<()> {
         .await
 }
 
+/// Tries to get file name and has default if message is empty.
+/// If file does not exist, it will ask for input again.
+fn get_file_name_with_default(message: &str, default: &str) -> String {
+    loop {
+        let input = get_input_with_default(message, "./stockfish.exe");
+        if Path::new(&input).exists() {
+            return input;
+        } else {
+            println!("{color_red}File not found. Please try again.{color_reset}\n");
+        }
+    }
+}
+
+/// Gets input from user. If message is empty, it will return default.
+fn get_input_with_default(message: &str, default: &str) -> String {
+    let input = get_input(message);
+    if input.is_empty() {
+        default.to_string()
+    } else {
+        input
+    }
+}
+
+/// Gets input from user
 fn get_input(message: &str) -> String {
+    println!();
     let mut input = String::new();
     println!("{}", message);
     print!("> ");
-    stdout().flush().unwrap(); // won't show message otherwise
+    stdout().flush().unwrap();
     stdin().read_line(&mut input).unwrap();
-    println!();
     input.trim().to_string()
+}
+
+fn initialize_engine(stockfish_path: &str, hash: &str, threads: &str, syzygy_path: &str) -> Engine {
+    let engine = Engine::new(stockfish_path).unwrap_or_else(|err| {
+        eprintln!("Could not start engine: {}", err);
+        exit(1);
+    });
+
+    if !hash.is_empty() {
+        engine.set_option("Hash", hash).unwrap();
+    }
+    if !threads.is_empty() {
+        engine.set_option("Threads", threads).unwrap();
+    }
+    if !syzygy_path.is_empty() {
+        engine.set_option("SyzygyPath", syzygy_path).unwrap();
+    }
+
+    engine
 }
 
 #[derive(Deserialize, Debug)]
@@ -85,32 +108,29 @@ struct SolveQueryParams {
     duration_secs: Option<u64>,
 }
 
-#[get("/api/solve")] // would change this shitty path but i cbf changing the lua script :3
+#[get("/api/solve")]
 async fn solve(
     engine: web::Data<Arc<Engine>>,
     query: web::Query<SolveQueryParams>,
 ) -> impl Responder {
-    println!("ran");
-    // pray that these unwraps don't error. i MIGHT consider fixing this if many errors come about
-    engine.set_position(query.fen.as_str()).unwrap();
-
-    // #[allow(unused_assignments)] // the warning was very annoying
-    // let mut answer = String::new();
-    let answer = engine.bestmove(false).unwrap();
-    // println!("{:?}", query);
-    // if query.duration_secs.is_some() {
-    //     engine.bestmove(true).unwrap();
-    //     sleep(Duration::from_secs(query.duration_secs.unwrap())).await;
-    //     answer = engine.stop_search().unwrap();
-    // } else {
-    //     answer = engine.bestmove(false).unwrap();
-    // }
-
-    qinfo!(
-        "Received FEN: {}\nRan for: {}\nOutput: {}\n",
+    println!(
+        "{color_bright_magenta}Received FEN{color_reset}: {}\n{color_bright_magenta}Set think time{color_reset}: {}",
         query.fen,
-        query.duration_secs.unwrap_or(0),
-        answer
+        query.duration_secs.unwrap_or(0)
     );
+
+    let start = Instant::now();
+    engine.set_position(query.fen.as_str()).unwrap();
+    let answer = if let Some(duration) = query.duration_secs {
+        engine.bestmove(true).unwrap();
+        sleep(Duration::from_secs(duration)).await;
+        engine.stop_search().unwrap()
+    } else {
+        engine.bestmove(false).unwrap()
+    };
+    let duration = start.elapsed();
+
+    println!("{color_bright_magenta}Returned{color_reset}: {}\n{color_bright_magenta}Time taken{color_reset}: {:?}\n", answer, duration);
+
     answer
 }

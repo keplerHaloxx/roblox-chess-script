@@ -1,7 +1,5 @@
 // Taken from https://crates.io/crates/uci. Modified a little
 
-use std;
-use std::convert::From;
 use std::fmt;
 use std::io;
 
@@ -17,18 +15,16 @@ pub enum EngineError {
 }
 
 impl fmt::Display for EngineError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             EngineError::Io(ref err) => write!(f, "IO error: {}", err),
-            EngineError::UnknownOption(ref option) => {
-                write!(f, "No such option: '{}'", option.as_str())
-            },
-            EngineError::Message(ref msg) => {
-                write!(f, "Error: '{}'", msg.as_str())
-            }
+            EngineError::UnknownOption(ref option) => write!(f, "No such option: '{}'", option),
+            EngineError::Message(ref msg) => write!(f, "Error: '{}'", msg),
         }
     }
 }
+
+impl std::error::Error for EngineError {}
 
 impl From<io::Error> for EngineError {
     fn from(err: io::Error) -> EngineError {
