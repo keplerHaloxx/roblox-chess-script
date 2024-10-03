@@ -4,26 +4,50 @@ mod uci;
 use std::{
     io::{stdin, stdout, Write},
     process::{exit, Command},
-    sync::Arc,
-    time::Duration,
+    sync::{Arc, Mutex},
 };
 
-use actix_web::{
-    get,
-    rt::time::{sleep, Instant},
-    web, App, HttpServer, Responder,
-};
+use actix_web::{get, http, rt::time::Instant, web, App, HttpServer, Responder};
 use inline_colorization::*;
 use rfd::FileDialog;
 use serde::Deserialize;
+use shakmaty::fen::Fen;
 use sysinfo::System;
 use thousands::Separable;
-use uci::lib::Engine;
+use uci::lib::{Engine, DEFAULT_TIME};
 
 const PORT: u16 = 3000;
 
+struct AppState {
+    engine: Arc<Mutex<Engine>>,
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let stockfish_path = choose_stockfish_file();
+    let (hash, threads, syzygy) = choose_engine_settings();
+
+    let engine = initialize_engine(&stockfish_path, &hash, &threads, &syzygy);
+
+    styled_println!(
+        format!("\nStarting server at http://localhost:{PORT}\n"),
+        color_bright_green
+    );
+
+    let engine_data = web::Data::new(AppState {
+        engine: Arc::new(Mutex::new(engine))
+    });
+    HttpServer::new(move || {
+        App::new()
+            .app_data(engine_data.clone()) // Use the cloned Data instance
+            .service(solve)
+    })
+    .bind(("127.0.0.1", PORT))?
+    .run()
+    .await
+}
+
+fn choose_stockfish_file() -> String {
     println!("Choose file for Stockfish.");
     let stockfish_path = FileDialog::new()
         .set_title("Choose location of Stockfish")
@@ -43,6 +67,10 @@ async fn main() -> std::io::Result<()> {
 
     styled_println!("File chosen successfully!\n", color_bright_green);
 
+    stockfish_path.unwrap().display().to_string()
+}
+
+fn choose_engine_settings() -> (Option<i32>, Option<i32>, String) {
     styled_println!(
         "Please leave the following options empty if you do not know what you are doing!",
         color_red
@@ -84,11 +112,16 @@ async fn main() -> std::io::Result<()> {
             if answer.is_empty() || answer == "n" {
                 break "".to_string();
             } else if answer == "y" {
-                if let Some(folder_path) = FileDialog::new()
+                if let Some(folder_paths) = FileDialog::new()
                     .set_title("Choose location of Syzygy tablebase")
-                    .pick_folder()
+                    .pick_folders()
                 {
-                    break folder_path.display().to_string();
+                    let mut glued_folder_paths = String::new();
+                    for folder_path in folder_paths {
+                        glued_folder_paths.push_str(&folder_path.display().to_string());
+                        glued_folder_paths.push(';');
+                    }
+                    break glued_folder_paths;
                 } else {
                     println!("No folder selected. Please try again.");
                 }
@@ -100,24 +133,7 @@ async fn main() -> std::io::Result<()> {
             }
         }
     };
-
-    let engine = initialize_engine(
-        &stockfish_path.unwrap().display().to_string(),
-        &hash,
-        &threads,
-        &syzygy,
-    );
-
-    styled_println!(
-        format!("Starting server at http://localhost:{PORT}"),
-        color_bright_green
-    );
-
-    let engine_data = web::Data::new(Arc::new(engine));
-    HttpServer::new(move || App::new().app_data(engine_data.clone()).service(solve))
-        .bind(("127.0.0.1", PORT))?
-        .run()
-        .await
+    (hash, threads, syzygy)
 }
 
 /// Gets input from user
@@ -167,7 +183,6 @@ fn initialize_engine(
             "If you cannot figure out what went wrong, message me on Discord (on my GitHub) or leave an inssue on the repo\n",
             color_bright_cyan
         );
-        
         let _ = Command::new("cmd.exe").arg("/c").arg("pause").status();
         exit(1);
     });
@@ -192,36 +207,53 @@ fn initialize_engine(
 #[derive(Deserialize, Debug)]
 struct SolveQueryParams {
     fen: String,
-    duration_secs: Option<u64>,
+    max_think_time: Option<u32>,
 }
 
 #[get("/api/solve")]
-async fn solve(
-    engine: web::Data<Arc<Engine>>,
-    query: web::Query<SolveQueryParams>,
-) -> impl Responder {
+async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -> impl Responder {
+    let mut engine = data.engine.lock().unwrap();
+
     styled_print!("Received FEN", color_bright_magenta);
-    print!(": {}", query.fen);
+    println!(": {}", query.fen);
 
     styled_print!("Set think time", color_bright_magenta);
-    print!(": {}", query.duration_secs.unwrap_or(0));
+    println!(": {}", query.max_think_time.unwrap_or(0));
 
-    let start = Instant::now();
-    engine.set_position(query.fen.as_str()).unwrap();
-    let answer = if let Some(duration) = query.duration_secs {
-        engine.bestmove(true).unwrap();
-        sleep(Duration::from_secs(duration)).await;
-        engine.stop_search().unwrap()
-    } else {
-        engine.bestmove(false).unwrap()
+    // validate fen
+    if let Err(e) = query.fen.parse::<Fen>() {
+        styled_println!("Invalid FEN\n", color_red);
+        return (format!("Error: {}", e), http::StatusCode::BAD_REQUEST);
+    }
+
+    let start = Instant::now(); // measure how long request took
+    
+
+    // i dont THINK this should ever error unless there's something wrong with stockfish
+    // as i've already validated the fen. still gonna do it regardless
+    if let Err(err) = engine.set_position(query.fen.as_str()) {
+        styled_println!("Failed to set position\n", color_red);
+        return (format!("Error: {}", err), http::StatusCode::BAD_REQUEST);
+    }
+
+    engine.set_movetime(query.max_think_time.unwrap_or(DEFAULT_TIME));
+
+    let answer = match engine.bestmove(false) {
+        Ok(move_) => move_,
+        // i have no clue what causes this error to happen but just in case
+        Err(err) => {
+            styled_println!("Failed to get best move\n", color_red);
+            return (format!("Error: {}", err), http::StatusCode::BAD_REQUEST);
+        }
     };
+
     let duration = start.elapsed();
 
     styled_print!("Returned", color_bright_magenta);
-    print!(": {answer}");
+    println!(": {answer}");
 
     styled_print!("Time taken", color_bright_magenta);
-    print!(": {duration:?}");
+    println!(": {duration:?}\n");
 
-    answer
+    (answer, http::StatusCode::OK)
 }

@@ -26,5 +26,3 @@ Cargo.lock
 
 stockfish.exe
 selene.toml
-
-/src/uci/main.rs
