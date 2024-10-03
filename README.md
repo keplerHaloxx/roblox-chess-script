@@ -11,5 +11,8 @@ While the server can be used for any application. The Roblox script is specifica
 > -   Run app and follow instructions until it says the server is running.
 > -   Execute [the script](https://raw.githubusercontent.com/keplerHaloxx/roblox-chess-script/refs/heads/main/script.luau)
 
-> [!NOTE]
-> This app is intended for educational purposes only. By using it, you agree to take full responsibility for any actions or decisions made based on the app’s content. The developers assume no liability for any outcomes resulting from its use.
+## Credits
+The crate to communicate with Stockfish's uci was copied from the [uci](https://crates.io/crates/uci) crate and slightly modified to be able to work with the program.
+
+## Disclaimer
+This app is intended for educational purposes only. By using it, you agree to take full responsibility for any actions or decisions made based on the app’s content. The developers assume no liability for any outcomes resulting from its use.

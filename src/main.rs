@@ -14,12 +14,13 @@ use serde::Deserialize;
 use shakmaty::fen::Fen;
 use sysinfo::System;
 use thousands::Separable;
-use uci::lib::{Engine, DEFAULT_TIME};
+use uci::Engine;
 
 const PORT: u16 = 3000;
 
 struct AppState {
     engine: Arc<Mutex<Engine>>,
+    // engine: Engine,
 }
 
 #[actix_web::main]
@@ -34,8 +35,11 @@ async fn main() -> std::io::Result<()> {
         color_bright_green
     );
 
+    // let engine_data = web::Data::new(AppState {
+    //     engine: Arc::new(Mutex::new(engine))
+    // });
     let engine_data = web::Data::new(AppState {
-        engine: Arc::new(Mutex::new(engine))
+        engine: Arc::new(Mutex::new(engine)),
     });
     HttpServer::new(move || {
         App::new()
@@ -212,6 +216,8 @@ struct SolveQueryParams {
 
 #[get("/api/solve")]
 async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -> impl Responder {
+    // locking the mutex here instead of
+    // let mut engine = data.engine.lock().unwrap();
     let mut engine = data.engine.lock().unwrap();
 
     styled_print!("Received FEN", color_bright_magenta);
@@ -227,7 +233,6 @@ async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -
     }
 
     let start = Instant::now(); // measure how long request took
-    
 
     // i dont THINK this should ever error unless there's something wrong with stockfish
     // as i've already validated the fen. still gonna do it regardless
@@ -236,9 +241,9 @@ async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -
         return (format!("Error: {}", err), http::StatusCode::BAD_REQUEST);
     }
 
-    engine.set_movetime(query.max_think_time.unwrap_or(DEFAULT_TIME));
+    engine.movetime(query.max_think_time.unwrap_or(100));
 
-    let answer = match engine.bestmove(false) {
+    let answer = match engine.bestmove() {
         Ok(move_) => move_,
         // i have no clue what causes this error to happen but just in case
         Err(err) => {
