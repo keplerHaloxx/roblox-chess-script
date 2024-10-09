@@ -1,86 +1,3 @@
-name: Release
-
-on:
-  workflow_dispatch:
-  release:
-    types: [published]
-
-permissions:
-  contents: write
-  packages: write
-
-jobs:
-  release-client:
-    defaults:
-      run:
-        working-directory: ./client
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: GitHub Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.1.30
-
-      - name: Install Dependencies
-        run: bun install
-
-      - name: Setup Aftman
-        uses: ok-nick/setup-aftman@v0.3.0
-        with:
-          token: ${{ github.token }}
-
-      - name: Install tools
-        run: aftman install --no-trust-check
-
-      - name: Build & Compile
-        run: |
-          bun run build --verbose
-
-      - name: Bundle Luau
-        run: bun run bundle
-
-      - name: Upload Release Assets
-        uses: alexellis/upload-assets@0.4.0
-        env:
-          ACTIONS_STEP_DEBUG: true
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          asset_paths: '["dist/main.rbxm", "dist/main.lua", "dist/main-dev.lua"]'
-
-  release-server:
-    defaults:
-      run:
-        working-directory: ./server
-
-    runs-on: windows-latest
-
-    steps:
-      - name: GitHub Checkout
-        uses: actions/checkout@v4
-
-      - name: Set Up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-
-      - name: Build Cargo Project
-        run: cargo build --release
-
-      - name: Upload Cargo Release Assets
-        uses: alexellis/upload-assets@0.4.0
-        env:
-          ACTIONS_STEP_DEBUG: true
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          asset_paths: '["/target/release/roblox-chess-script.exe"]'
-
-
 # name: Release
 
 # on:
@@ -104,11 +21,13 @@ jobs:
 #       - name: GitHub Checkout
 #         uses: actions/checkout@v4
 
-#       - name: Setup PNPM
-#         uses: pnpm/action-setup@v4
+#       - name: Setup Bun
+#         uses: oven-sh/setup-bun@v2
 #         with:
-#           version: 8
-#           run_install: true
+#           bun-version: 1.1.30
+
+#       - name: Install Dependencies
+#         run: bun install
 
 #       - name: Setup Aftman
 #         uses: ok-nick/setup-aftman@v0.3.0
@@ -120,10 +39,10 @@ jobs:
 
 #       - name: Build & Compile
 #         run: |
-#           pnpm run action-pnpm-build --verbose
+#           bun run build --verbose
 
 #       - name: Bundle Luau
-#         run: pnpm run action-pnpm-bundle
+#         run: bun run bundle
 
 #       - name: Upload Release Assets
 #         uses: alexellis/upload-assets@0.4.0
@@ -159,4 +78,84 @@ jobs:
 #           ACTIONS_STEP_DEBUG: true
 #           GITHUB_TOKEN: ${{ github.token }}
 #         with:
-#           asset_paths: '["/target/release/roblox-chess-script.exe"]'
+#           asset_paths: '["target/release/roblox-chess-script.exe"]'
+
+name: Release
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release-client:
+    defaults:
+      run:
+        working-directory: ./client
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: GitHub Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+          run_install: true
+
+      - name: Setup Aftman
+        uses: ok-nick/setup-aftman@v0.3.0
+        with:
+          token: ${{ github.token }}
+
+      - name: Install tools
+        run: aftman install --no-trust-check
+
+      - name: Build & Compile
+        run: |
+          pnpm run action-pnpm-build --verbose
+
+      - name: Bundle Luau
+        run: pnpm run action-pnpm-bundle
+
+      - name: Upload Release Assets
+        uses: alexellis/upload-assets@0.4.0
+        env:
+          ACTIONS_STEP_DEBUG: true
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          asset_paths: '["dist/main.rbxm", "dist/main.lua", "dist/main-dev.lua"]'
+
+  release-server:
+    defaults:
+      run:
+        working-directory: ./server
+
+    runs-on: windows-latest
+
+    steps:
+      - name: GitHub Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Build Cargo Project
+        run: cargo build --release
+
+      - name: Upload Cargo Release Assets
+        uses: alexellis/upload-assets@0.4.0
+        env:
+          ACTIONS_STEP_DEBUG: true
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          asset_paths: '["target/release/roblox-chess-script.exe"]'
