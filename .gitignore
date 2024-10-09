@@ -24,7 +24,7 @@ Cargo.lock
 
 /target
 
-./stockfish.exe
-./selene.toml
+stockfish.exe
+selene.toml
 
 /src/uci/main.rs
