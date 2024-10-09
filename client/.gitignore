@@ -1,0 +1,10 @@
+/node_modules
+/out
+/include
+/dist
+*.tsbuildinfo
+.vscode
+pnpm-lock.yaml
+bun.lockb
+default.project.json
+package-lock.json

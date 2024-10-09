@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published, prereleased]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  publish-release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./client
+
+    steps:
+      - name: GitHub Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.1.30
+
+      - name: Setup Aftman
+        uses: ok-nick/setup-aftman@v0.3.0
+
+      - name: Install Rojo & Remodel
+        run: aftman install
+
+      - name: Build & Compile
+        run: |
+          bun run build --verbose
+          bun run rojo --verbose
+
+      - name: Bundle Luau
+        run: bun run bundle
+
+      - name: Upload Release Assets
+        uses: alexellis/upload-assets@0.4.0
+        env:
+          ACTIONS_STEP_DEBUG: true
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          asset_paths: '["dist/main.rbxm", "dist/main.lua", "dist/main-dev.lua"]'

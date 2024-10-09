@@ -7,10 +7,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use actix_web::{get, http, rt::time::Instant, web, App, HttpServer, Responder};
+use actix_web::{get, rt::time::Instant, web, App, HttpResponse, HttpServer, Responder};
 use inline_colorization::*;
 use rfd::FileDialog;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use shakmaty::fen::Fen;
 use sysinfo::System;
 use thousands::Separable;
@@ -214,10 +214,14 @@ struct SolveQueryParams {
     max_think_time: Option<u32>,
 }
 
+#[derive(Serialize)]
+struct SolveResponse {
+    success: bool,
+    result: String,
+}
+
 #[get("/api/solve")]
 async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -> impl Responder {
-    // locking the mutex here instead of
-    // let mut engine = data.engine.lock().unwrap();
     let mut engine = data.engine.lock().unwrap();
 
     styled_print!("Received FEN", color_bright_magenta);
@@ -227,28 +231,37 @@ async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -
     println!(": {}", query.max_think_time.unwrap_or(0));
 
     // validate fen
-    if let Err(e) = query.fen.parse::<Fen>() {
+    if query.fen.parse::<Fen>().is_err() {
         styled_println!("Invalid FEN\n", color_red);
-        return (format!("Error: {}", e), http::StatusCode::BAD_REQUEST);
+        return HttpResponse::BadRequest().json(SolveResponse {
+            success: false,
+            result: "Error: Invalid FEN".to_string(),
+        });
     }
 
-    let start = Instant::now(); // measure how long request took
+    let start = Instant::now();
 
-    // i dont THINK this should ever error unless there's something wrong with stockfish
-    // as i've already validated the fen. still gonna do it regardless
+    // Set position on engine
     if let Err(err) = engine.set_position(query.fen.as_str()) {
-        styled_println!("Failed to set position\n", color_red);
-        return (format!("Error: {}", err), http::StatusCode::BAD_REQUEST);
+        styled_println!(format!("Failed to set position - {err}\n"), color_red);
+        return HttpResponse::BadRequest().json(SolveResponse {
+            success: false,
+            result: "Error: Failed to set position".to_string(),
+        });
     }
 
+    // Think for the specified time
     engine.movetime(query.max_think_time.unwrap_or(100));
 
+    // Get the best move
     let answer = match engine.bestmove() {
         Ok(move_) => move_,
-        // i have no clue what causes this error to happen but just in case
         Err(err) => {
-            styled_println!("Failed to get best move\n", color_red);
-            return (format!("Error: {}", err), http::StatusCode::BAD_REQUEST);
+            styled_println!(format!("Failed to get best move - {err}\n"), color_red);
+            return HttpResponse::BadRequest().json(SolveResponse {
+                success: false,
+                result: "Error: Failed to get best move".to_string(),
+            });
         }
     };
 
@@ -260,5 +273,9 @@ async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -
     styled_print!("Time Taken", color_bright_magenta);
     println!(": {duration:?}\n");
 
-    (answer, http::StatusCode::OK)
+    // Return the best move as a JSON response with 200 OK status
+    HttpResponse::Ok().json(SolveResponse {
+        success: true,
+        result: answer,
+    })
 }
