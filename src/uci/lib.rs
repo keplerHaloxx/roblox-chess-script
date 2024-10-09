@@ -1,15 +1,15 @@
 // Taken from https://crates.io/crates/uci. Modified a little
 
 pub(crate) use crate::uci::error::{EngineError, EngineResult};
-use std::cell::RefCell;
 use std::fmt;
 use std::io::{Read, Write};
 use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
 
 pub struct Engine {
-    engine: RefCell<Child>,
+    engine: Arc<Mutex<Child>>,
     movetime: u32,
 }
 
@@ -32,25 +32,28 @@ impl Engine {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
-            .map_err(|_| EngineError::Message("ERROR_STOCKFISH".to_string()))?;
+            .map_err(|e| EngineError::Message(format!("ERROR_STOCKFISH: {}", e)))?;
 
-        let mut engine = Engine {
-            engine: RefCell::new(cmd),
+        let engine = Engine {
+            engine: Arc::new(Mutex::new(cmd)),
             movetime: DEFAULT_TIME,
         };
 
-        engine.read_line()?;
-        engine.command("uci")?;
+        if !engine.read_line()?.contains("Stockfish") {
+            return Err(EngineError::Message(format!("ERROR_STOCKFISH: Stockfish not found at {}", path)));
+        }
 
         Ok(engine)
     }
 
+    #[allow(dead_code)]
     /// Changes the amount of time the engine spends looking for a move.
     pub fn movetime(mut self, new_movetime: u32) -> Engine {
         self.movetime = new_movetime;
         self
     }
 
+    #[allow(dead_code)]
     /// Asks the engine to play the given moves from the initial position on its internal board.
     pub fn make_moves(&self, moves: &[String]) -> EngineResult<()> {
         self.write_fmt(format_args!(
@@ -90,6 +93,7 @@ impl Engine {
         }
     }
 
+    #[allow(dead_code)]
     /// Gets the current best move (run only when [`bestmove`] function is running).
     pub fn current_best_move(&self) -> EngineResult<String> {
         loop {
@@ -145,7 +149,8 @@ impl Engine {
 
     fn write_fmt(&self, args: fmt::Arguments) -> EngineResult<()> {
         self.engine
-            .borrow_mut()
+            .lock()
+            .map_err(|_| EngineError::Message("Failed to lock engine mutex".to_string()))?
             .stdin
             .as_mut()
             .ok_or_else(|| EngineError::Message("Failed to access stdin".to_string()))?
@@ -159,7 +164,8 @@ impl Engine {
 
         loop {
             self.engine
-                .borrow_mut()
+                .lock()
+                .map_err(|_| EngineError::Message("Failed to lock engine mutex".to_string()))?
                 .stdout
                 .as_mut()
                 .ok_or_else(|| EngineError::Message("Failed to access stdout".to_string()))?

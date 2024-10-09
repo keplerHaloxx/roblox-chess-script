@@ -1,12 +1,10 @@
-#![allow(unused)]
+// #![allow(unused)]
 
 mod simple_logger;
 mod uci;
 
 use std::{
-    fs::File,
     io::{stdin, stdout, Write},
-    path::Path,
     process::exit,
     sync::Arc,
     time::Duration,
@@ -18,58 +16,97 @@ use actix_web::{
     web, App, HttpServer, Responder,
 };
 use inline_colorization::*;
+use rfd::FileDialog;
 use serde::Deserialize;
+use sysinfo::System;
+use thousands::Separable;
 use uci::lib::Engine;
 
 const PORT: u16 = 3000;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    println!("Ensure you input valid options to prevent crashes.");
-    println!("Leave options blank if unsure.");
-    println!("UNLESS stockfish.exe is in the current folder don't leave the first one empty.\n");
+    println!("Choose file for Stockfish.");
+    let stockfish_path = FileDialog::new()
+        .set_title("Choose location of Stockfish")
+        .add_filter("Executable (*.exe)", &["exe"])
+        .pick_file();
 
-    let stockfish_path = get_file_name_with_default(
-        "Enter stockfish.exe path (defaults to: './stockfish.exe')\n'./' means current folder",
-        "./stockfish.exe",
+    if stockfish_path.is_none() {
+        println!("{color_red}No file selected. Please select a file to continue.{color_reset}");
+        get_input("Press enter to exit...");
+        exit(1);
+    }
+
+    println!("{color_bright_green}File chosen successfully!{color_reset}\n");
+
+    println!(
+        "{color_red}Please leave the following options empty if you do not know what you are doing!{color_reset}"
     );
-    let hash = get_input("Enter hash amount");
-    let threads = get_input("Enter threads amount");
-    let syzygy_path = get_input("Enter Syzygy path");
+    let sys = System::new_all();
 
-    let engine = initialize_engine(&stockfish_path, &hash, &threads, &syzygy_path);
+    let gb = 1024_f64.powf(3.0);
+    let mb = 1024_f64.powf(2.0);
+    let total_mem = sys.total_memory() as f64;
+    let free_mem = sys.free_memory() as f64;
+    /*
+    This may truly be the most perplexing code I've ever penned,
+    A tangled mess my future self must one day comprehend.
+    To the me who will revisit this chaos, I offer my deepest apology,
+    Oh, save me from this torment, this cryptic tragedy.
+    */
+    let hash = get_int_input(
+        &format!(
+            "Enter hash amount in MB\nTotal: {} GB | {} MB\nFree: {} GB | {} MB",
+            (total_mem / gb + (total_mem % gb).signum()).floor(),
+            (total_mem as u64 / mb as u64).separate_with_commas(),
+            (free_mem / gb + (free_mem % gb).signum()).floor(),
+            (free_mem as u64 / mb as u64).separate_with_commas(),
+        ),
+        true,
+    );
+    let threads = get_int_input(
+        &format!("Enter threads amount\nTotal: {}", sys.cpus().len()),
+        true,
+    );
+
+    let syzygy: String = {
+        loop {
+            let answer = get_input("Do you have a Syzygy tablebase? (Y\\n).").to_ascii_lowercase();
+
+            if answer.is_empty() || answer == "n" {
+                break "".to_string();
+            } else if answer == "y" {
+                if let Some(folder_path) = FileDialog::new()
+                    .set_title("Choose location of Syzygy tablebase")
+                    .pick_folder()
+                {
+                    break folder_path.display().to_string();
+                } else {
+                    println!("No folder selected. Please try again.");
+                }
+            } else {
+                println!(
+                    "Invalid input. Please enter 'y' (yes), 'n' (no), or leave blank to skip."
+                );
+            }
+        }
+    };
+
+    let engine = initialize_engine(
+        &stockfish_path.unwrap().display().to_string(),
+        &hash,
+        &threads,
+        &syzygy,
+    );
+
+    println!("\n{color_bright_green}Starting server at http://localhost:{PORT}{color_reset}\n");
 
     let engine_data = web::Data::new(Arc::new(engine));
-
-    println!("{color_bright_green}Starting server at http://localhost:{PORT}{color_reset}");
-
     HttpServer::new(move || App::new().app_data(engine_data.clone()).service(solve))
         .bind(("127.0.0.1", PORT))?
         .run()
         .await
-}
-
-/// Tries to get file name and has default if message is empty.
-/// If file does not exist, it will ask for input again.
-fn get_file_name_with_default(message: &str, default: &str) -> String {
-    loop {
-        let input = get_input_with_default(message, "./stockfish.exe");
-        if Path::new(&input).exists() {
-            return input;
-        } else {
-            println!("{color_red}File not found. Please try again.{color_reset}\n");
-        }
-    }
-}
-
-/// Gets input from user. If message is empty, it will return default.
-fn get_input_with_default(message: &str, default: &str) -> String {
-    let input = get_input(message);
-    if input.is_empty() {
-        default.to_string()
-    } else {
-        input
-    }
 }
 
 /// Gets input from user
@@ -83,17 +120,46 @@ fn get_input(message: &str) -> String {
     input.trim().to_string()
 }
 
-fn initialize_engine(stockfish_path: &str, hash: &str, threads: &str, syzygy_path: &str) -> Engine {
+fn get_int_input(message: &str, allow_empty: bool) -> Option<i32> {
+    loop {
+        let input = get_input(message);
+        if allow_empty && input.is_empty() {
+            return None;
+        }
+        if let Ok(number) = input.parse::<i32>() {
+            return Some(number);
+        }
+        println!("{color_red}Invalid input. Please enter a number.{color_reset}");
+    }
+}
+
+fn initialize_engine(
+    stockfish_path: &str,
+    hash: &Option<i32>,
+    threads: &Option<i32>,
+    syzygy_path: &str,
+) -> Engine {
     let engine = Engine::new(stockfish_path).unwrap_or_else(|err| {
-        eprintln!("Could not start engine: {}", err);
+        println!("\n{color_red}Could not start engine: {}{color_reset}", err);
+        println!("\nThings to consider:");
+        println!("  {color_bright_cyan}- Did you select the correct file for Stockfish?");
+        println!("  - Did you make sure to enter valid settings?{color_reset}");
+        println!(
+            "If you cannot figure out what went wrong, message me on Discord (on my GitHub)\n"
+        );
+        get_input("Press enter to exit...");
         exit(1);
     });
 
-    if !hash.is_empty() {
-        engine.set_option("Hash", hash).unwrap();
+    if hash.is_some() {
+        engine
+            .set_option("Hash", &hash.unwrap().to_string())
+            .unwrap();
     }
-    if !threads.is_empty() {
-        engine.set_option("Threads", threads).unwrap();
+    if threads.is_some() {
+        engine
+            .set_option("Threads", &threads.unwrap().to_string())
+            .unwrap();
     }
     if !syzygy_path.is_empty() {
         engine.set_option("SyzygyPath", syzygy_path).unwrap();
