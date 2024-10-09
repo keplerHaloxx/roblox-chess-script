@@ -223,7 +223,7 @@ async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -
     styled_print!("Received FEN", color_bright_magenta);
     println!(": {}", query.fen);
 
-    styled_print!("Set think time", color_bright_magenta);
+    styled_print!("Max Think Time", color_bright_magenta);
     println!(": {}", query.max_think_time.unwrap_or(0));
 
     // validate fen
@@ -257,7 +257,7 @@ async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -
     styled_print!("Returned", color_bright_magenta);
     println!(": {answer}");
 
-    styled_print!("Time taken", color_bright_magenta);
+    styled_print!("Time Taken", color_bright_magenta);
     println!(": {duration:?}\n");
 
     (answer, http::StatusCode::OK)
