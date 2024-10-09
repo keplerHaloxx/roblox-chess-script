@@ -132,10 +132,10 @@ jobs:
         run: pnpm run action-pnpm-bundle
 
       - name: Print Files in 'dist' Directory
+        continue-on-error: true
         run: |
           echo "Files in 'dist' Directory:"
-          ls -la dist/*
-          ls -la dist/**/*
+          ls -la dist
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
