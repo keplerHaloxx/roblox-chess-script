@@ -20,7 +20,6 @@ const PORT: u16 = 3000;
 
 struct AppState {
     engine: Arc<Mutex<Engine>>,
-    // engine: Engine,
 }
 
 #[actix_web::main]
@@ -35,9 +34,6 @@ async fn main() -> std::io::Result<()> {
         color_bright_green
     );
 
-    // let engine_data = web::Data::new(AppState {
-    //     engine: Arc::new(Mutex::new(engine))
-    // });
     let engine_data = web::Data::new(AppState {
         engine: Arc::new(Mutex::new(engine)),
     });
@@ -85,12 +81,7 @@ fn choose_engine_settings() -> (Option<i32>, Option<i32>, String) {
     let mb = 1024_f64.powf(2.0);
     let total_mem = sys.total_memory() as f64;
     let free_mem = sys.free_memory() as f64;
-    /*
-    This may truly be the most perplexing code I've ever penned,
-    A tangled mess my future self must one day comprehend.
-    To the me who will revisit this chaos, I offer my deepest apology.
-    Oh, save me from this torment, this cryptic tragedy.
-    */
+
     let hash = get_int_input(
         &format!(
             "Enter hash amount in MB\nTotal: {} GB | {} MB\nFree: {} GB | {} MB",
