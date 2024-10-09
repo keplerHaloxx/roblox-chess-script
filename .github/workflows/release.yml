@@ -95,13 +95,20 @@ jobs:
   release-client:
     defaults:
       run:
-        working-directory: ./client
+        working-directory: client
 
     runs-on: windows-latest
 
     steps:
       - name: GitHub Checkout
         uses: actions/checkout@v4
+
+      - name: Print Current Directory
+        run: |
+          echo "Current Directory:"
+          pwd
+          echo "Files in Current Directory:"
+          ls -la
 
       - name: Setup PNPM
         uses: pnpm/action-setup@v4
