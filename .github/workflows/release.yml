@@ -137,10 +137,12 @@ jobs:
           ls -la dist
 
       - name: Upload Release Assets
-        uses: AButler/upload-release-assets@v3.0
+        uses: softprops/action-gh-release@v2
         with:
-          files: "dist/*"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            dist/*
+          token: ${{ secrets.GITHUB_TOKEN }}
+          generate_release_notes: true
 
   release-server:
     defaults:
