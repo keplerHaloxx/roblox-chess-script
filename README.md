@@ -7,9 +7,12 @@ While the server can be used for any application. The Roblox script is specifica
 ## How to Run
 
 > -   Download [Stockfish](https://stockfishchess.org/download/) ('Faster' version is recommended).
-> -   Download latest release from [here](https://github.com/keplerHaloxx/roblox-chess-script/releases/latest).
+> -   Download latest release from [here](https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/roblox-chess-script.exe).
 > -   Run app and follow instructions until it says the server is running.
-> -   Execute [the script](https://raw.githubusercontent.com/keplerHaloxx/roblox-chess-script/refs/heads/main/script.luau)
+> - Execute this script:
+> ```lua
+> loadstring(game:HttpGet("https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/main.lua"))()
+> ```
 
 ## Credits
 The crate to communicate with Stockfish's uci was copied from the [uci](https://crates.io/crates/uci) crate and slightly modified to be able to work with the program.
