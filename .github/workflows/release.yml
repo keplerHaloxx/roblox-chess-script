@@ -28,15 +28,11 @@ jobs:
 
       - name: Setup Aftman
         uses: ok-nick/setup-aftman@v0.3.0
-
-      - name: Add Aftman tools
-        run: |
-          aftman add seaofvoices/darklua
-          aftman add rojo-rbx/remodel
-          aftman add rojo-rbx/rojo
+        with:
+          token: ${{ github.token }}
 
       - name: Install tools
-        run: aftman install
+        run: aftman install --no-trust-check
 
       - name: Build & Compile
         run: |
