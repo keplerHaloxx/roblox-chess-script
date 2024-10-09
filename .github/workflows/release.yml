@@ -142,7 +142,7 @@ jobs:
           ACTIONS_STEP_DEBUG: true
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          asset_paths: '["dist/main.rbxm", "dist/main.lua", "dist/main-dev.lua"]'
+          asset_paths: '["./dist/main.rbxm", "./dist/main.lua", "./dist/main-dev.lua"]'
 
   release-server:
     defaults:
