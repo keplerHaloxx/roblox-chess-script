@@ -4,8 +4,8 @@
     "description": "The client-side code for a chess game on Roblox",
     "main": "main.client.lua",
     "scripts": {
-        "build": "rbxtsc",
-        "watch": "rbxtsc -w",
+        "build": "bunx rbxtsc",
+        "watch": "bunx rbxtsc -w",
         "rojo": "mkdirp dist; rojo build -o dist/main.rbxm",
         "bundle:dev": "bun run rojo; cross-env ENV=development remodel run ci/bundle.lua",
         "bundle:prod": "bun run rojo; cross-env ENV=production remodel run ci/bundle.lua",
