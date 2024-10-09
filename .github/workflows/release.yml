@@ -97,7 +97,7 @@ jobs:
       run:
         working-directory: ./client
 
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
       - name: GitHub Checkout
@@ -153,9 +153,7 @@ jobs:
         run: cargo build --release
 
       - name: Upload Cargo Release Assets
-        uses: alexellis/upload-assets@0.4.0
-        env:
-          ACTIONS_STEP_DEBUG: true
-          GITHUB_TOKEN: ${{ github.token }}
+        uses: AButler/upload-release-assets@v3.0
         with:
-          asset_paths: '["target/release/roblox-chess-script.exe"]'
+          files: "**/roblox-chess-script.exe"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
