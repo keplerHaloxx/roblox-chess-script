@@ -3,7 +3,7 @@ name: Release
 on:
   workflow_dispatch:
   release:
-    types: [published, prereleased]
+    types: [published]
 
 permissions:
   contents: write
