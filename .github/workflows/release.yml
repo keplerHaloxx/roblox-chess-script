@@ -10,7 +10,7 @@ permissions:
   packages: write
 
 jobs:
-  publish-release:
+  release-client:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -46,3 +46,28 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           asset_paths: '["dist/main.rbxm", "dist/main.lua", "dist/main-dev.lua"]'
+
+  release-server:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: GitHub Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Build Cargo Project
+        working-directory: ./server
+        run: cargo build --release
+
+      - name: Upload Cargo Release Assets
+        uses: alexellis/upload-assets@0.4.0
+        env:
+          ACTIONS_STEP_DEBUG: true
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          asset_paths: '["./server/target/release/roblox-chess-script.exe"]'
