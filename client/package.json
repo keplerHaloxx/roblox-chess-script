@@ -10,7 +10,12 @@
         "bundle:dev": "bun run rojo; cross-env ENV=development remodel run ci/bundle.lua",
         "bundle:prod": "bun run rojo; cross-env ENV=production remodel run ci/bundle.lua",
         "bundle": "bun run bundle:dev; bun run bundle:prod",
-        "build-bundle": "bun run build; bun run bundle"
+        "build-bundle": "bun run build; bun run bundle",
+        "action-pnpm-build": "pnpm exec rbxtsc",
+        "action-pnpm-rojo": "pnpm exec mkdirp dist && rojo build -o dist/main.rbxm",
+        "action-pnpm-bundle:dev": "pnpm run action-pnpm-rojo; cross-env ENV=development remodel run ci/bundle.lua",
+        "action-pnpm-bundle:prod": "pnpm run action-pnpm-rojo; cross-env ENV=production remodel run ci/bundle.lua",
+        "action-pnpm-bundle": "pnpm run build; pnpm run bundle"
     },
     "keywords": [],
     "author": "keplerHaloxx",
@@ -18,17 +23,17 @@
     "devDependencies": {
         "@rbxts/compiler-types": "3.0.0-types.0",
         "@rbxts/types": "^1.0.810",
-        "@typescript-eslint/eslint-plugin": "^5.62.0",
-        "@typescript-eslint/parser": "^5.62.0",
+        "@typescript-eslint/eslint-plugin": "^8.8.1",
+        "@typescript-eslint/parser": "^8.8.1",
         "cross-env": "^7.0.3",
-        "eslint": "^8.57.1",
-        "eslint-config-prettier": "^8.10.0",
-        "eslint-plugin-prettier": "^4.2.1",
-        "eslint-plugin-roblox-ts": "^0.0.35",
-        "mkdirp": "^2.1.6",
-        "prettier": "^2.8.8",
-        "roblox-ts": "^2.3.0",
-        "typescript": "^4.9.5"
+        "eslint": "^9.12.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-plugin-prettier": "^5.2.1",
+        "eslint-plugin-roblox-ts": "^0.0.36",
+        "mkdirp": "^3.0.1",
+        "prettier": "^3.3.3",
+        "roblox-ts": "^3.0.0",
+        "typescript": "^5.6.3"
     },
     "dependencies": {
         "@rbxts/services": "^1.5.5",
