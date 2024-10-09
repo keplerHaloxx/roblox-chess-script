@@ -15,7 +15,7 @@
         "action-pnpm-rojo": "pnpm exec mkdirp dist && rojo build -o dist/main.rbxm",
         "action-pnpm-bundle:dev": "pnpm run action-pnpm-rojo; cross-env ENV=development remodel run ci/bundle.lua",
         "action-pnpm-bundle:prod": "pnpm run action-pnpm-rojo; cross-env ENV=production remodel run ci/bundle.lua",
-        "action-pnpm-bundle": "action-pnpm-bundle:dev; action-pnpm-bundle:prod"
+        "action-pnpm-bundle": "pnpm run action-pnpm-bundle:dev; pnpm run action-pnpm-bundle:prod"
     },
     "keywords": [],
     "author": "keplerHaloxx",
