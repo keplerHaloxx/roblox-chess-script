@@ -26,3 +26,4 @@ Cargo.lock
 
 stockfish.exe
 selene.toml
+*temp*
