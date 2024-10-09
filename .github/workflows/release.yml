@@ -145,28 +145,28 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           generate_release_notes: true
 
-  # release-server:
-  #   defaults:
-  #     run:
-  #       working-directory: ./server
+  release-server:
+    defaults:
+      run:
+        working-directory: ./server
 
-  #   runs-on: windows-latest
+    runs-on: windows-latest
 
-  #   steps:
-  #     - name: GitHub Checkout
-  #       uses: actions/checkout@v4
+    steps:
+      - name: GitHub Checkout
+        uses: actions/checkout@v4
 
-  #     - name: Set Up Rust
-  #       uses: actions-rs/toolchain@v1
-  #       with:
-  #         toolchain: stable
-  #         override: true
+      - name: Set Up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
 
-  #     - name: Build Cargo Project
-  #       run: cargo build --release
+      - name: Build Cargo Project
+        run: cargo build --release
 
-  #     - name: Upload Cargo Release Assets
-  #       uses: AButler/upload-release-assets@v3.0
-  #       with:
-  #         files: "**/roblox-chess-script.exe"
-  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Cargo Release Assets
+        uses: AButler/upload-release-assets@v3.0
+        with:
+          files: "**/roblox-chess-script.exe"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
