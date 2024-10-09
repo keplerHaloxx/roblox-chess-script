@@ -131,12 +131,10 @@ jobs:
       - name: Bundle Luau
         run: pnpm run action-pnpm-bundle
 
-      - name: Print Current Directory
+      - name: Print Files in 'dist' Directory
         run: |
-          echo "Current Directory:"
-          pwd
-          echo "Files in Current Directory:"
-          ls -la
+          echo "Files in 'dist' Directory:"
+          ls -la dist
 
       - name: Upload Release Assets
         uses: alexellis/upload-assets@0.4.0
