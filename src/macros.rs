@@ -4,7 +4,19 @@ macro_rules! styled_vec_print {
         for style in $styles.iter() {
             print!("{}", style);
         }
-        println!("{}{color_reset}{style_reset}", $msg);
+        print!("{}{color_reset}{style_reset}", $msg);
+    }};
+
+    ($msg:expr) => {{
+        print!("{}", $msg);
+    }};
+}
+
+#[macro_export]
+macro_rules! styled_vec_println {
+    ($msg:expr, $styles:expr) => {{
+        styled_vec_print!($msg, $styles);
+        println!();
     }};
 
     ($msg:expr) => {{
