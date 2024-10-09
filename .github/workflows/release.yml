@@ -11,10 +11,11 @@ permissions:
 
 jobs:
   release-client:
-    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./client
+
+    runs-on: ubuntu-latest
 
     steps:
       - name: GitHub Checkout
@@ -28,7 +29,13 @@ jobs:
       - name: Setup Aftman
         uses: ok-nick/setup-aftman@v0.3.0
 
-      - name: Install Rojo & Remodel
+      - name: Add Aftman tools
+        run: |
+          aftman add seaofvoices/darklua
+          aftman add rojo-rbx/remodel
+          aftman add rojo-rbx/rojo
+
+      - name: Install tools
         run: aftman install
 
       - name: Build & Compile
@@ -48,6 +55,10 @@ jobs:
           asset_paths: '["dist/main.rbxm", "dist/main.lua", "dist/main-dev.lua"]'
 
   release-server:
+    defaults:
+      run:
+        working-directory: ./server
+
     runs-on: ubuntu-latest
 
     steps:
@@ -61,7 +72,6 @@ jobs:
           override: true
 
       - name: Build Cargo Project
-        working-directory: ./server
         run: cargo build --release
 
       - name: Upload Cargo Release Assets
