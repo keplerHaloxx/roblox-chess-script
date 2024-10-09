@@ -1,11 +1,9 @@
-// #![allow(unused)]
-
-mod simple_logger;
+mod macros;
 mod uci;
 
 use std::{
     io::{stdin, stdout, Write},
-    process::exit,
+    process::{exit, Command},
     sync::Arc,
     time::Duration,
 };
@@ -33,15 +31,21 @@ async fn main() -> std::io::Result<()> {
         .pick_file();
 
     if stockfish_path.is_none() {
-        println!("{color_red}No file selected. Please select a file to continue.{color_reset}");
-        get_input("Press enter to exit...");
+        styled_println!(
+            "No file selected. Please select a file to continue.",
+            color_red
+        );
+
+        let _ = Command::new("cmd.exe").arg("/c").arg("pause").status();
+        // get_input("Press enter to exit...", None);
         exit(1);
     }
 
-    println!("{color_bright_green}File chosen successfully!{color_reset}\n");
+    styled_println!("File chosen successfully!\n", color_bright_green);
 
-    println!(
-        "{color_red}Please leave the following options empty if you do not know what you are doing!{color_reset}"
+    styled_println!(
+        "Please leave the following options empty if you do not know what you are doing!",
+        color_red
     );
     let sys = System::new_all();
 
@@ -52,7 +56,7 @@ async fn main() -> std::io::Result<()> {
     /*
     This may truly be the most perplexing code I've ever penned,
     A tangled mess my future self must one day comprehend.
-    To the me who will revisit this chaos, I offer my deepest apology,
+    To the me who will revisit this chaos, I offer my deepest apology.
     Oh, save me from this torment, this cryptic tragedy.
     */
     let hash = get_int_input(
@@ -64,15 +68,18 @@ async fn main() -> std::io::Result<()> {
             (free_mem as u64 / mb as u64).separate_with_commas(),
         ),
         true,
+        None,
     );
     let threads = get_int_input(
         &format!("Enter threads amount\nTotal: {}", sys.cpus().len()),
         true,
+        None,
     );
 
     let syzygy: String = {
         loop {
-            let answer = get_input("Do you have a Syzygy tablebase? (Y\\n).").to_ascii_lowercase();
+            let answer =
+                get_input("Do you have a Syzygy tablebase? (Y\\n).", None).to_ascii_lowercase();
 
             if answer.is_empty() || answer == "n" {
                 break "".to_string();
@@ -86,8 +93,9 @@ async fn main() -> std::io::Result<()> {
                     println!("No folder selected. Please try again.");
                 }
             } else {
-                println!(
-                    "Invalid input. Please enter 'y' (yes), 'n' (no), or leave blank to skip."
+                styled_println!(
+                    "Invalid input. Please enter 'y' (yes), 'n' (no), or leave blank to skip.",
+                    color_red
                 );
             }
         }
@@ -100,7 +108,10 @@ async fn main() -> std::io::Result<()> {
         &syzygy,
     );
 
-    println!("\n{color_bright_green}Starting server at http://localhost:{PORT}{color_reset}\n");
+    styled_println!(
+        format!("Starting server at http://localhost:{PORT}"),
+        color_bright_green
+    );
 
     let engine_data = web::Data::new(Arc::new(engine));
     HttpServer::new(move || App::new().app_data(engine_data.clone()).service(solve))
@@ -110,26 +121,30 @@ async fn main() -> std::io::Result<()> {
 }
 
 /// Gets input from user
-fn get_input(message: &str) -> String {
-    println!();
+fn get_input(message: &str, styles: Option<Vec<&str>>) -> String {
+    println!(); // format
+
     let mut input = String::new();
-    println!("{}", message);
-    print!("> ");
+    match styles {
+        Some(styles_vec) => styled_vec_print!(format!("{message}\n>"), styles_vec),
+        None => print!("{message}\n>"),
+    }
     stdout().flush().unwrap();
+
     stdin().read_line(&mut input).unwrap();
     input.trim().to_string()
 }
 
-fn get_int_input(message: &str, allow_empty: bool) -> Option<i32> {
+fn get_int_input(message: &str, allow_empty: bool, styles: Option<Vec<&str>>) -> Option<i32> {
     loop {
-        let input = get_input(message);
+        let input = get_input(message, styles.clone());
         if allow_empty && input.is_empty() {
             return None;
         }
         if let Ok(number) = input.parse::<i32>() {
             return Some(number);
         }
-        println!("{color_red}Invalid input. Please enter a number.{color_reset}");
+        styled_println!("Invalid input. Please enter a number.", color_red);
     }
 }
 
@@ -140,14 +155,20 @@ fn initialize_engine(
     syzygy_path: &str,
 ) -> Engine {
     let engine = Engine::new(stockfish_path).unwrap_or_else(|err| {
-        println!("\n{color_red}Could not start engine: {}{color_reset}", err);
-        println!("\nThings to consider:");
-        println!("  {color_bright_cyan}- Did you select the correct file for Stockfish?");
-        println!("  - Did you make sure to enter valid settings?{color_reset}");
-        println!(
-            "If you cannot figure out what went wrong, message me on Discord (on my GitHub)\n"
+        styled_println!(
+            format!("Could not start engine: {}\n", err),
+            color_red,
+            "\n"
         );
-        get_input("Press enter to exit...");
+        styled_println!("Things to consider:", style_bold, color_bright_yellow);
+        styled_println!("  - Did you select the correct file for Stockfish?", style_bold, color_bright_yellow);
+        styled_println!("  - Did you make sure to enter valid settings?\n", style_bold, color_bright_yellow);
+        styled_println!(
+            "If you cannot figure out what went wrong, message me on Discord (on my GitHub) or leave an inssue on the repo\n",
+            color_bright_cyan
+        );
+        
+        let _ = Command::new("cmd.exe").arg("/c").arg("pause").status();
         exit(1);
     });
 
@@ -179,11 +200,11 @@ async fn solve(
     engine: web::Data<Arc<Engine>>,
     query: web::Query<SolveQueryParams>,
 ) -> impl Responder {
-    println!(
-        "{color_bright_magenta}Received FEN{color_reset}: {}\n{color_bright_magenta}Set think time{color_reset}: {}",
-        query.fen,
-        query.duration_secs.unwrap_or(0)
-    );
+    styled_print!("Received FEN", color_bright_magenta);
+    print!(": {}", query.fen);
+
+    styled_print!("Set think time", color_bright_magenta);
+    print!(": {}", query.duration_secs.unwrap_or(0));
 
     let start = Instant::now();
     engine.set_position(query.fen.as_str()).unwrap();
@@ -196,7 +217,11 @@ async fn solve(
     };
     let duration = start.elapsed();
 
-    println!("{color_bright_magenta}Returned{color_reset}: {}\n{color_bright_magenta}Time taken{color_reset}: {:?}\n", answer, duration);
+    styled_print!("Returned", color_bright_magenta);
+    print!(": {answer}");
+
+    styled_print!("Time taken", color_bright_magenta);
+    print!(": {duration:?}");
 
     answer
 }
