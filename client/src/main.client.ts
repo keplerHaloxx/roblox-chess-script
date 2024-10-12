@@ -39,33 +39,35 @@ const board = new Board()
 function bestMove() {
     setBotStatus("Calculating")
 
-    const output = findBestMove(board)
+    const output = findBestMove(board, thinkTimeSlider.CurrentValue)
 
-    if (output[0] === false) {
-        // has errored
-        setBotStatus("Error!")
-        task.spawn(() => {
-            task.wait(2.5)
-            if (botStatus === "Status: Error!") setBotStatus("Idle")
-        })
-        setBotOutputContent(output[1])
-        return
-    }
-
-    new Highlighter(output[2]!) // piece
-    new Highlighter(output[3]!) // place
-
-    setBotOutputContent(`Received: ${output[1]}`)
-
-    // spawn a new thread to destory all pieces once it's no longer the players turn
     task.spawn(() => {
-        while (board.isPlayerTurn()) {
-            task.wait()
+        if (output[0] === false) {
+            // has errored
+            setBotStatus("Error!")
+            task.spawn(() => {
+                task.wait(2.5)
+                if (botStatus === "Status: Error!") setBotStatus("Idle")
+            })
+            setBotOutputContent(output[1])
+            return
         }
-        Highlighter.destoryAll()
-    })
 
-    setBotStatus("Idle")
+        new Highlighter(output[2]!) // piece
+        new Highlighter(output[3]!) // place
+
+        setBotOutputContent(`Received: ${output[1]}`)
+
+        // spawn a new thread to destory all pieces once it's no longer the players turn
+        task.spawn(() => {
+            while (board.isPlayerTurn()) {
+                task.wait()
+            }
+            Highlighter.destoryAll()
+        })
+
+        setBotStatus("Idle")
+    })
 }
 
 const mainTab = window.CreateTab("Main")
@@ -104,14 +106,32 @@ const autoCalculateToggle = mainTab.CreateToggle({
 })
 
 task.spawn(() => {
-    while (typeOf(task.wait(0.5)) === "number") {
-        // keep waiting until the toggle is on
-        if (autoCalculateToggle.CurrentValue) {
-            if (Board.gameInProgress() && board.isPlayerTurn()) {
-                bestMove()
-                while (board.isPlayerTurn()) task.wait(0.2)
-                while (!board.isPlayerTurn()) task.wait(0.2)
-            }
+    // keep waiting until the toggle is on
+    while (true) {
+        if (
+            autoCalculateToggle.CurrentValue &&
+            Board.gameInProgress() &&
+            board.isPlayerTurn()
+        ) {
+            bestMove()
+            while (board.isPlayerTurn()) task.wait()
+            while (!board.isPlayerTurn()) task.wait()
+        } else {
+            task.wait()
         }
     }
+})
+
+mainTab.CreateSection("Bot Options")
+mainTab.CreateLabel(
+    "Maximum amount of time Stockfish has to think"
+)
+const thinkTimeSlider = mainTab.CreateSlider({
+    Name: "Max Think Time",
+    Range: [100, 5_000],
+    CurrentValue: 100,
+    Flag: "MaxThinkTime",
+    Suffix: "ms",
+    Increment: 10,
+    Callback: (value: number) => {},
 })

@@ -13,7 +13,7 @@ interface MoveJsonData {
 /**
  * Does a ton of checks and gets the best move
  */
-export = (board: Board): [boolean, string, Instance?, Instance?] => {
+export = (board: Board, maxThinkTime: number): [boolean, string, Instance?, Instance?] => {
     if (!board.isPlayerTurn()) return [false, "not your turn"]
 
     if (board.willCauseDesync()[1] !== undefined) {
@@ -23,7 +23,8 @@ export = (board: Board): [boolean, string, Instance?, Instance?] => {
 
     const ret = HttpGet(
         "http://127.0.0.1:3000/api/solve?fen=" + // localhost is the same as this but Wave flags it as dangerous
-            HttpService.UrlEncode(board.board2fen()!)
+            HttpService.UrlEncode(board.board2fen()!) +
+            `&max_think_time=${maxThinkTime}`
     )
     // eslint-disable-next-line roblox-ts/lua-truthiness
     if (!ret) {

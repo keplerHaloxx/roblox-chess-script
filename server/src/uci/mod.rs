@@ -119,11 +119,27 @@ impl Engine {
         ))
     }
 
+    #[allow(dead_code)]
     /// Returns the best move in the current position according to the engine
     /// # Errors
     /// Returns an error if the engine is not ready to return a move
     pub fn bestmove(&self) -> Result<String> {
         self.write_fmt(format_args!("go movetime {}\n", self.movetime))?;
+        loop {
+            let s = self.read_line()?;
+            debug!("{}", s);
+            if s.starts_with("bestmove") {
+                return Ok(s.split(' ').collect::<Vec<&str>>()[1].trim().to_string());
+            }
+        }
+    }
+
+    /// Same as `bestmove` but it accepts a depth parameter
+    pub fn bestmove_depth(&self, depth: u32) -> Result<String> {
+        self.write_fmt(format_args!(
+            "go depth {} movetime {}\n",
+            self.movetime, depth
+        ))?;
         loop {
             let s = self.read_line()?;
             debug!("{}", s);

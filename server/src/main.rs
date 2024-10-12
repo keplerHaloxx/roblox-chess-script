@@ -1,20 +1,22 @@
 mod macros;
 mod uci;
+mod utils;
 
 use std::{
-    io::{stdin, stdout, Write},
     process::{exit, Command},
     sync::{Arc, Mutex},
 };
 
 use actix_web::{get, rt::time::Instant, web, App, HttpResponse, HttpServer, Responder};
 use inline_colorization::*;
+use macros::styled::{f, styled_print, styled_println};
 use rfd::FileDialog;
-use serde::{Deserialize, Serialize};
 use shakmaty::fen::Fen;
-use sysinfo::System;
-use thousands::Separable;
 use uci::Engine;
+use utils::{
+    engine::{choose_engine_settings, initialize_engine},
+    SolveQueryParams, SolveResponse,
+};
 
 const PORT: u16 = 3000;
 
@@ -28,6 +30,9 @@ async fn main() -> std::io::Result<()> {
     let (hash, threads, syzygy) = choose_engine_settings();
 
     let engine = initialize_engine(&stockfish_path, &hash, &threads, &syzygy);
+    set_stockfish_option(&engine, "Ponder", "true");
+    set_stockfish_option(&engine, "MultiPV", "5");
+    set_stockfish_option(&engine, "Move Overhead", "0");
 
     styled_println!(
         format!("\nStarting server at http://localhost:{PORT}\n"),
@@ -45,6 +50,12 @@ async fn main() -> std::io::Result<()> {
     .bind(("127.0.0.1", PORT))?
     .run()
     .await
+}
+
+fn set_stockfish_option(engine: &Engine, option: &str, value: &str) {
+    engine
+        .set_option(option, value)
+        .unwrap_or_else(|e| styled_println!(f!("Failed to set option: {e}")));
 }
 
 fn choose_stockfish_file() -> String {
@@ -70,147 +81,6 @@ fn choose_stockfish_file() -> String {
     stockfish_path.unwrap().display().to_string()
 }
 
-fn choose_engine_settings() -> (Option<i32>, Option<i32>, String) {
-    styled_println!(
-        "Please leave the following options empty if you do not know what you are doing!",
-        color_red
-    );
-    let sys = System::new_all();
-
-    let gb = 1024_f64.powf(3.0);
-    let mb = 1024_f64.powf(2.0);
-    let total_mem = sys.total_memory() as f64;
-    let free_mem = sys.free_memory() as f64;
-
-    let hash = get_int_input(
-        &format!(
-            "Enter hash amount in MB\nTotal: {} GB | {} MB\nFree: {} GB | {} MB",
-            (total_mem / gb + (total_mem % gb).signum()).floor(),
-            (total_mem as u64 / mb as u64).separate_with_commas(),
-            (free_mem / gb + (free_mem % gb).signum()).floor(),
-            (free_mem as u64 / mb as u64).separate_with_commas(),
-        ),
-        true,
-        None,
-    );
-    let threads = get_int_input(
-        &format!("Enter threads amount\nTotal: {}", sys.cpus().len()),
-        true,
-        None,
-    );
-
-    let syzygy: String = {
-        loop {
-            let answer =
-                get_input("Do you have a Syzygy tablebase? (Y\\n).", None).to_ascii_lowercase();
-
-            if answer.is_empty() || answer == "n" {
-                break "".to_string();
-            } else if answer == "y" {
-                if let Some(folder_paths) = FileDialog::new()
-                    .set_title("Choose location of Syzygy tablebase")
-                    .pick_folders()
-                {
-                    let mut glued_folder_paths = String::new();
-                    for folder_path in folder_paths {
-                        glued_folder_paths.push_str(&folder_path.display().to_string());
-                        glued_folder_paths.push(';');
-                    }
-                    break glued_folder_paths;
-                } else {
-                    println!("No folder selected. Please try again.");
-                }
-            } else {
-                styled_println!(
-                    "Invalid input. Please enter 'y' (yes), 'n' (no), or leave blank to skip.",
-                    color_red
-                );
-            }
-        }
-    };
-    (hash, threads, syzygy)
-}
-
-/// Gets input from user
-fn get_input(message: &str, styles: Option<Vec<&str>>) -> String {
-    println!(); // format
-
-    let mut input = String::new();
-    match styles {
-        Some(styles_vec) => styled_vec_print!(format!("{message}\n>"), styles_vec),
-        None => print!("{message}\n>"),
-    }
-    stdout().flush().unwrap();
-
-    stdin().read_line(&mut input).unwrap();
-    input.trim().to_string()
-}
-
-fn get_int_input(message: &str, allow_empty: bool, styles: Option<Vec<&str>>) -> Option<i32> {
-    loop {
-        let input = get_input(message, styles.clone());
-        if allow_empty && input.is_empty() {
-            return None;
-        }
-        if let Ok(number) = input.parse::<i32>() {
-            return Some(number);
-        }
-        styled_println!("Invalid input. Please enter a number.", color_red);
-    }
-}
-
-fn initialize_engine(
-    stockfish_path: &str,
-    hash: &Option<i32>,
-    threads: &Option<i32>,
-    syzygy_path: &str,
-) -> Engine {
-    let engine = Engine::new(stockfish_path).unwrap_or_else(|err| {
-        styled_println!(
-            format!("Could not start engine: {}\n", err),
-            color_red,
-            "\n"
-        );
-        styled_println!("Things to consider:", style_bold, color_bright_yellow);
-        styled_println!("  - Did you select the correct file for Stockfish?", style_bold, color_bright_yellow);
-        styled_println!("  - Did you make sure to enter valid settings?\n", style_bold, color_bright_yellow);
-        styled_println!(
-            "If you cannot figure out what went wrong, message me on Discord (on my GitHub) or leave an inssue on the repo\n",
-            color_bright_cyan
-        );
-        let _ = Command::new("cmd.exe").arg("/c").arg("pause").status();
-        exit(1);
-    });
-
-    if hash.is_some() {
-        engine
-            .set_option("Hash", &hash.unwrap().to_string())
-            .unwrap();
-    }
-    if threads.is_some() {
-        engine
-            .set_option("Threads", &threads.unwrap().to_string())
-            .unwrap();
-    }
-    if !syzygy_path.is_empty() {
-        engine.set_option("SyzygyPath", syzygy_path).unwrap();
-    }
-
-    engine
-}
-
-#[derive(Deserialize, Debug)]
-struct SolveQueryParams {
-    fen: String,
-    max_think_time: Option<u32>,
-}
-
-#[derive(Serialize)]
-struct SolveResponse {
-    success: bool,
-    result: String,
-}
-
 #[get("/api/solve")]
 async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -> impl Responder {
     let mut engine = data.engine.lock().unwrap();
@@ -219,9 +89,9 @@ async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -
     println!(": {}", query.fen);
 
     styled_print!("Max Think Time", color_bright_magenta);
-    println!(": {}", query.max_think_time.unwrap_or(0));
+    println!(": {}", query.max_think_time.unwrap_or(100));
 
-    // validate fen
+    // Validate FEN
     if query.fen.parse::<Fen>().is_err() {
         styled_println!("Invalid FEN\n", color_red);
         return HttpResponse::BadRequest().json(SolveResponse {
@@ -234,24 +104,25 @@ async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -
 
     // Set position on engine
     if let Err(err) = engine.set_position(query.fen.as_str()) {
-        styled_println!(format!("Failed to set position - {err}\n"), color_red);
+        styled_println!(f!("Failed to set position - {err}\n"), color_red);
         return HttpResponse::BadRequest().json(SolveResponse {
             success: false,
-            result: "Error: Failed to set position".to_string(),
+            result: f!("Error: Failed to set position - {}", err),
         });
     }
 
-    // Think for the specified time
-    engine.movetime(query.max_think_time.unwrap_or(100));
+    // Use provided think time or default to 100ms
+    let max_think_time = query.max_think_time.unwrap_or(100);
+    engine.movetime(max_think_time);
 
     // Get the best move
-    let answer = match engine.bestmove() {
-        Ok(move_) => move_,
+    let best_move = match engine.bestmove_depth(17) {
+        Ok(mv) => mv,
         Err(err) => {
-            styled_println!(format!("Failed to get best move - {err}\n"), color_red);
+            styled_println!(f!("Failed to get best move - {err}\n"), color_red);
             return HttpResponse::BadRequest().json(SolveResponse {
                 success: false,
-                result: "Error: Failed to get best move".to_string(),
+                result: f!("Error: Failed to get best move - {}", err),
             });
         }
     };
@@ -259,14 +130,14 @@ async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -
     let duration = start.elapsed();
 
     styled_print!("Returned", color_bright_magenta);
-    println!(": {answer}");
+    println!(": {best_move}");
 
     styled_print!("Time Taken", color_bright_magenta);
     println!(": {duration:?}\n");
 
-    // Return the best move as a JSON response with 200 OK status
+    // Return best move as JSON response
     HttpResponse::Ok().json(SolveResponse {
         success: true,
-        result: answer,
+        result: best_move,
     })
 }
