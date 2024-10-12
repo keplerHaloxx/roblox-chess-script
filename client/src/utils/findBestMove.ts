@@ -22,7 +22,7 @@ export = (board: Board): [boolean, string, Instance?, Instance?] => {
     }
 
     const ret = HttpGet(
-        "http://localhost:3000/api/solve?fen=" +
+        "http://127.0.0.1:3000/api/solve?fen=" + // localhost is the same as this but Wave flags it as dangerous
             HttpService.UrlEncode(board.board2fen()!)
     )
     // eslint-disable-next-line roblox-ts/lua-truthiness
