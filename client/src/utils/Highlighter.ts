@@ -34,7 +34,7 @@ export class Highlighter {
         const _highlight = new Instance("Highlight")
         _highlight.Name = options?.Name ?? "Highlight"
         _highlight.FillColor =
-            options?.FillColor ?? Color3.fromRGB(175, 25, 255)
+            options?.FillColor ?? Color3.fromRGB(59, 235, 223)
         _highlight.DepthMode =
             options?.DepthMode ?? Enum.HighlightDepthMode.AlwaysOnTop
         _highlight.FillTransparency = options?.FillTransparency ?? 0.5
