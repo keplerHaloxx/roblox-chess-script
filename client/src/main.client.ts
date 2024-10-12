@@ -5,7 +5,8 @@ import destoryErrorLogging from "utils/destoryErrorLogging"
 import Board from "utils/LuaFuncs/board"
 import { Highlighter } from "utils/Highlighter"
 import findBestMove from "utils/findBestMove"
-import { StarterGui } from "@rbxts/services"
+import { Players, StarterGui } from "@rbxts/services"
+import { queue_on_teleport } from "libs/Unc"
 
 const notiBindableFunc = new Instance("BindableFunction")
 notiBindableFunc.OnInvoke = (buttonName: string) => {
@@ -32,6 +33,11 @@ const window = Rayfield.CreateWindow({
     Name: "Chess",
     LoadingTitle: "Loading 🔃",
     LoadingSubtitle: "By Haloxx",
+    ConfigurationSaving: {
+        Enabled: true,
+        FolderName: "keplerHaloxx-Chess",
+        FileName: "chess-script-config",
+    },
 })
 
 const board = new Board()
@@ -123,9 +129,7 @@ task.spawn(() => {
 })
 
 mainTab.CreateSection("Bot Options")
-mainTab.CreateLabel(
-    "Maximum amount of time Stockfish has to think"
-)
+mainTab.CreateLabel("Maximum amount of time Stockfish has to think")
 const thinkTimeSlider = mainTab.CreateSlider({
     Name: "Max Think Time",
     Range: [100, 5_000],
@@ -134,4 +138,13 @@ const thinkTimeSlider = mainTab.CreateSlider({
     Suffix: "ms",
     Increment: 10,
     Callback: (value: number) => {},
+})
+
+Rayfield.LoadConfiguration()
+
+// re-excecute script on rejoin
+Players.LocalPlayer.OnTeleport.Connect(() => {
+    queue_on_teleport(
+        `loadstring(game:HttpGet("https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/main.lua"))()`
+    )
 })

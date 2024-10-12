@@ -1,8 +1,6 @@
 import { HttpService, Workspace } from "@rbxts/services"
 import HttpGet from "./HttpGet"
 import Board from "./LuaFuncs/board"
-import rprint from "./rprint"
-import { Highlighter } from "./Highlighter"
 import getPosFromResult from "./getPosFromResult"
 
 interface MoveJsonData {

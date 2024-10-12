@@ -107,6 +107,7 @@ export declare function saveinstance(
 ): void
 export declare function decompile(script: Instance): string
 export declare function messagebox(text: string, title: string, flag: number): number
+export declare function queue_on_teleport(script: string): undefined
 
 // Reflection
 export declare function loadstring(chunk: string, chunk_name?: string): func

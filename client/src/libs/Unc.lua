@@ -285,6 +285,10 @@ function Module.isreadonly(a1)
 	return isreadonly(a1)
 end
 
+function Module.queue_on_teleport(a1)
+    queue_on_teleport(a1)
+end
+
 -- Cache library
 Module.cache = {
 	replace = function(x, y)

@@ -37,6 +37,7 @@ interface Rayfield {
             Key: string[]
         }
     }): Window
+    LoadConfiguration(): void
 }
 
 interface Window {
