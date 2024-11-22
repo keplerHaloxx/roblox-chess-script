@@ -18,7 +18,7 @@ use utils::{
     SolveQueryParams, SolveResponse,
 };
 
-const PORT: u16 = 1234;
+const PORT: u16 = 3000;
 
 struct AppState {
     engine: Arc<Mutex<Engine>>,

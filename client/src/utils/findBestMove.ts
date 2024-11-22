@@ -11,7 +11,10 @@ interface MoveJsonData {
 /**
  * Does a ton of checks and gets the best move
  */
-export = (board: Board, maxThinkTime: number): [boolean, string, Instance?, Instance?] => {
+export = (
+    board: Board,
+    maxThinkTime: number
+): [boolean, string, Instance?, Instance?] => {
     if (!board.isPlayerTurn()) return [false, "not your turn"]
 
     if (board.willCauseDesync()[1] !== undefined) {
