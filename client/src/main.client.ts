@@ -33,6 +33,10 @@ const window = Rayfield.CreateWindow({
     Name: "Chess",
     LoadingTitle: "Loading 🔃",
     LoadingSubtitle: "By Haloxx",
+
+    DisableBuildWarnings: false,
+    DisableRayfieldPrompts: false,
+
     ConfigurationSaving: {
         Enabled: true,
         FolderName: "keplerHaloxx-Chess",
@@ -137,14 +141,23 @@ const thinkTimeSlider = mainTab.CreateSlider({
     Flag: "MaxThinkTime",
     Suffix: "ms",
     Increment: 10,
-    Callback: (value: number) => {},
+    Callback: () => {},
 })
 
 Rayfield.LoadConfiguration()
 
 // re-excecute script on rejoin
-Players.LocalPlayer.OnTeleport.Connect(() => {
-    queue_on_teleport(
-        `loadstring(game:HttpGet("https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/main.lua"))()`
-    )
-})
+{
+    const [success, message] = pcall(() => {
+        queue_on_teleport(
+            `loadstring(game:HttpGet("https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/main.lua"))()`
+        )
+    })
+    if (!success) {
+        Rayfield.Notify({
+            Title: "Your executor probably doesn't support queue_on_teleport()",
+            Content: `That is okay but you will have to manually re-execute the script on rejoin.`,
+            Image: "",
+        })
+    }
+}

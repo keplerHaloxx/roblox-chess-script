@@ -18,7 +18,7 @@ use utils::{
     SolveQueryParams, SolveResponse,
 };
 
-const PORT: u16 = 3000;
+const PORT: u16 = 1234;
 
 struct AppState {
     engine: Arc<Mutex<Engine>>,
@@ -42,6 +42,7 @@ async fn main() -> std::io::Result<()> {
     let engine_data = web::Data::new(AppState {
         engine: Arc::new(Mutex::new(engine)),
     });
+
     HttpServer::new(move || {
         App::new()
             .app_data(engine_data.clone()) // Use the cloned Data instance
