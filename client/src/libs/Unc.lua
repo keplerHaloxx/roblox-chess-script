@@ -286,7 +286,7 @@ function Module.isreadonly(a1)
 end
 
 function Module.queue_on_teleport(a1)
-    queue_on_teleport(a1)
+	queue_on_teleport(a1)
 end
 
 -- Cache library
@@ -459,5 +459,16 @@ Module.actors = {
 		return is_parallel()
 	end,
 }
+
+-- Runs the passed in functions and returns true if the functions were successful and false if not
+function Module.ensure_executor_functions_access(...)
+	local funcs = { ... }
+    for i = 1, #funcs do
+        if not funcs[i] then
+            return false
+        end
+    end
+	return true
+end
 
 return Module

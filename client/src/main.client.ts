@@ -5,8 +5,8 @@ import destoryErrorLogging from "utils/destoryErrorLogging"
 import Board from "utils/LuaFuncs/board"
 import { Highlighter } from "utils/Highlighter"
 import findBestMove from "utils/findBestMove"
-import { Players, StarterGui } from "@rbxts/services"
-import { queue_on_teleport } from "libs/Unc"
+import { StarterGui } from "@rbxts/services"
+import { ensure_executor_functions_access, queue_on_teleport } from "libs/Unc"
 
 const notiBindableFunc = new Instance("BindableFunction")
 notiBindableFunc.OnInvoke = (buttonName: string) => {
@@ -82,6 +82,16 @@ function bestMove() {
 
 const mainTab = window.CreateTab("Main")
 
+if (!ensure_executor_functions_access(queue_on_teleport))
+    mainTab.CreateParagraph({
+        Title: "Your executor probably doesn't support queue_on_teleport()",
+        Content: `Do not worry that is OKAY but you will have to manually re-execute the script on rejoin.`,
+    })
+else
+    queue_on_teleport(
+        `loadstring(game:HttpGet("https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/main.lua"))()`
+    )
+
 mainTab.CreateSection("Status")
 
 let botStatus = ""
@@ -103,7 +113,7 @@ const setBotOutputContent = (content: string) =>
 
 mainTab.CreateSection("Run")
 
-const runButton = mainTab.CreateButton({
+mainTab.CreateButton({
     Name: "Run",
     Callback: bestMove,
 })
@@ -145,19 +155,3 @@ const thinkTimeSlider = mainTab.CreateSlider({
 })
 
 Rayfield.LoadConfiguration()
-
-// re-excecute script on rejoin
-{
-    const [success, message] = pcall(() => {
-        queue_on_teleport(
-            `loadstring(game:HttpGet("https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/main.lua"))()`
-        )
-    })
-    if (!success) {
-        Rayfield.Notify({
-            Title: "Your executor probably doesn't support queue_on_teleport()",
-            Content: `That is okay but you will have to manually re-execute the script on rejoin.`,
-            Image: "",
-        })
-    }
-}

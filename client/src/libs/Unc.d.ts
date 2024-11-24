@@ -19,7 +19,7 @@ export declare function printconsole(
 ): void
 
 // Enviornment
-export declare function getgenv(): {[a: string]: any}
+export declare function getgenv(): { [a: string]: any }
 export declare function getrenv(): table
 export declare function getreg(): table
 export declare function getgc(include_tables?: boolean): table
@@ -27,7 +27,10 @@ export declare function getinstances(): table
 export declare function getnilinstances(): table
 export declare function getloadedmodules(): table
 export declare function getconnections(signal: RBXScriptSignal): table
-export declare function firesignal(signal: RBXScriptSignal, ...args: table): void
+export declare function firesignal(
+    signal: RBXScriptSignal,
+    ...args: table
+): void
 export declare function fireclickdetector(
     detector: ClickDetector,
     distance?: number,
@@ -40,7 +43,10 @@ export declare function firetouchinterest(
     toggle?: number
 ): void
 export declare function setscriptable(object: Instance, toggle: boolean): void
-export declare function gethiddenproperty(object: Instance, property: string): void
+export declare function gethiddenproperty(
+    object: Instance,
+    property: string
+): void
 export declare function sethiddenproperty(
     object: Instance,
     property: string,
@@ -106,7 +112,11 @@ export declare function saveinstance(
     }
 ): void
 export declare function decompile(script: Instance): string
-export declare function messagebox(text: string, title: string, flag: number): number
+export declare function messagebox(
+    text: string,
+    title: string,
+    flag: number
+): number
 export declare function queue_on_teleport(script: string): undefined
 
 // Reflection
@@ -242,18 +252,18 @@ type DrawingType =
 type DrawingTypes<T extends DrawingType> = T extends "Line"
     ? LineDrawing
     : T extends "Text"
-    ? TextDrawing
-    : T extends "Image"
-    ? ImageDrawing
-    : T extends "Circle"
-    ? CircleDrawing
-    : T extends "Square"
-    ? SquareDrawing
-    : T extends "Quad"
-    ? QuadDrawing
-    : T extends "Triangle"
-    ? TriangleDrawing
-    : BaseDrawing
+      ? TextDrawing
+      : T extends "Image"
+        ? ImageDrawing
+        : T extends "Circle"
+          ? CircleDrawing
+          : T extends "Square"
+            ? SquareDrawing
+            : T extends "Quad"
+              ? QuadDrawing
+              : T extends "Triangle"
+                ? TriangleDrawing
+                : BaseDrawing
 
 interface DrawingConstructor {
     new <T extends DrawingType>(type: T): DrawingTypes<T>
@@ -293,3 +303,11 @@ export declare const actors: {
     run_on_actor(actor: Actor, script: Script): string
     is_parallel(): boolean
 }
+
+/**
+ * If any of the functions in `funcs` fail then the function will return false
+ * @param funcs Any number of parameters that are functions.
+ */
+export declare function ensure_executor_functions_access(
+    ...funcs: ((...args: any[]) => any)[] // able to take in any type of function
+): boolean
