@@ -12,6 +12,7 @@ use inline_colorization::*;
 use macros::styled::{f, styled_print, styled_println};
 use rfd::FileDialog;
 use shakmaty::fen::Fen;
+// use shakmaty::fen::Fen;
 use uci::Engine;
 use utils::{
     engine::{choose_engine_settings, initialize_engine},
@@ -26,6 +27,8 @@ struct AppState {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    styled_println!("If anything goes wrong please try updating the app first. If that doesn't work, please report the issue on GitHub or DM me on Discord (in my github profile).\n", color_bright_cyan);
+
     let stockfish_path = choose_stockfish_file();
     let (hash, threads, syzygy) = choose_engine_settings();
 
