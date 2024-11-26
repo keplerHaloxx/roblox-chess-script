@@ -21,13 +21,6 @@ jobs:
       - name: GitHub Checkout
         uses: actions/checkout@v4
 
-      - name: Print Current Directory
-        run: |
-          echo "Current Directory:"
-          pwd
-          echo "Files in Current Directory:"
-          ls -la
-
       - name: Setup PNPM
         uses: pnpm/action-setup@v4
         with:
@@ -48,12 +41,6 @@ jobs:
 
       - name: Bundle Luau
         run: pnpm run action-pnpm-bundle
-
-      - name: Print Files in 'dist' Directory
-        continue-on-error: true
-        run: |
-          echo "Files in 'dist' Directory:"
-          ls -la dist
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
