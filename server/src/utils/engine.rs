@@ -1,20 +1,22 @@
 use std::process::{exit, Command};
 
-use inline_colorization::*;
 use rfd::FileDialog;
 use sysinfo::System;
 use thousands::Separable;
 
 use crate::{
-    macros::styled::{f, styled_println},
+    macros::styled::f,
     uci::Engine,
-    utils::input::{get_input, get_int_input},
+    utils::{
+        color_print::{CommonColors, Printer},
+        input::{get_input, get_int_input},
+    },
 };
 
 pub fn choose_engine_settings() -> (Option<i32>, Option<i32>, String) {
-    styled_println!(
+    Printer::println(
         "Please leave the following options empty if you do not know what you are doing!",
-        color_red
+        CommonColors::Red,
     );
     let sys = System::new_all();
 
@@ -32,18 +34,15 @@ pub fn choose_engine_settings() -> (Option<i32>, Option<i32>, String) {
             (free_mem as u64 / mb as u64).separate_with_commas(),
         ),
         true,
-        None,
     );
     let threads = get_int_input(
         &f!("Enter threads amount\nTotal: {}", sys.cpus().len()),
         true,
-        None,
     );
 
     let syzygy: String = {
         loop {
-            let answer =
-                get_input("Do you have a Syzygy tablebase? (Y\\n).", None).to_ascii_lowercase();
+            let answer = get_input("Do you have a Syzygy tablebase? (Y\\n).").to_ascii_lowercase();
 
             if answer.is_empty() || answer == "n" {
                 break "".to_string();
@@ -62,9 +61,9 @@ pub fn choose_engine_settings() -> (Option<i32>, Option<i32>, String) {
                     println!("No folder selected. Please try again.");
                 }
             } else {
-                styled_println!(
+                Printer::println(
                     "Invalid input. Please enter 'y' (yes), 'n' (no), or leave blank to skip.",
-                    color_red
+                    super::color_print::CommonColors::Red,
                 );
             }
         }
@@ -79,17 +78,13 @@ pub fn initialize_engine(
     syzygy_path: &str,
 ) -> Engine {
     let engine = Engine::new(stockfish_path).unwrap_or_else(|err| {
-        styled_println!(
-            f!("Could not start engine: {}\n", err),
-            color_red,
-            "\n"
-        );
-        styled_println!("Things to consider:", style_bold, color_bright_yellow);
-        styled_println!("  - Did you select the correct file for Stockfish?", style_bold, color_bright_yellow);
-        styled_println!("  - Did you make sure to enter valid settings?\n", style_bold, color_bright_yellow);
-        styled_println!(
+        Printer::println(f!("\nCould not start engine: {}\n", err), CommonColors::Red);
+        Printer::println("Things to consider:", CommonColors::BrightBoldYellow);
+        Printer::println("  - Did you select the correct file for Stockfish?", CommonColors::BrightBoldYellow);
+        Printer::println("  - Did you make sure to enter valid settings?\n", CommonColors::BrightBoldYellow);
+        Printer::println(
             "If you cannot figure out what went wrong, message me on Discord (on my GitHub) or leave an inssue on the repo\n",
-            color_bright_cyan
+            CommonColors::BrightCyan,
         );
         let _ = Command::new("cmd.exe").arg("/c").arg("pause").status();
         exit(1);
