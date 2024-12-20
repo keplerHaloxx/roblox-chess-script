@@ -1,14 +1,14 @@
 [package]
 name = "roblox-chess-script"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 
 [dependencies]
 actix-web = "4"
-serde = {version = "1.0.210", features = ["derive"]}
-inline_colorization = "0.1.6"
+serde = {version = "1.0.216", features = ["derive"]}
 rfd = "0.15.0"
-sysinfo = "0.31.4"
+sysinfo = "0.33.0"
 thousands = "0.2.0"
 shakmaty = "0.27.2"
 log = "0.4.22"
+termcolor = "1.4.1"

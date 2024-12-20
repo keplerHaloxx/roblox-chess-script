@@ -31,7 +31,7 @@ findOrCreateFolder(CoreGui, "HighlightCache", "Folder") // create highlight cach
 
 const window = Rayfield.CreateWindow({
     Name: "Chess",
-    LoadingTitle: "Loading 🔃",
+    LoadingTitle: "Chess ♟️",
     LoadingSubtitle: "By Haloxx",
 
     DisableBuildWarnings: false,
