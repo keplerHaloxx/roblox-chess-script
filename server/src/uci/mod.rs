@@ -5,10 +5,14 @@ use std::process::{Child, Command, Stdio};
 use std::io::Write;
 use std::io::{self, Read};
 
-use std::fmt;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use std::{fmt, sync};
+
+use log::{debug, info};
+
+use self::EngineError::{Io, UnknownOption};
 
 #[derive(Clone)]
 pub struct Engine {
@@ -36,21 +40,58 @@ impl Engine {
     ///
     /// [`Engine`]: struct.Engine.html
     pub fn new(path: &str) -> Result<Engine> {
-        let cmd = Command::new(path)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("Unable to run engine");
+        // the amount of chatgpt stolen code is MASSIVE. you know what else is massive?
 
-        let res = Engine {
-            engine: Arc::new(Mutex::new(cmd)),
-            movetime: DEFAULT_TIME,
-        };
+        let path = path.to_string(); // Move ownership of path into the thread
+        let (sender, receiver) = sync::mpsc::channel();
 
-        res.read_line()?;
-        res.command("uci")?;
+        // Spawn a thread for the entire initialization process
+        thread::spawn(move || {
+            // Create the subprocess
+            let cmd = Command::new(path)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn();
 
-        Ok(res)
+            if let Err(err) = cmd {
+                let _ = sender.send(Err(EngineError::Io(err)));
+                return;
+            }
+
+            let process = cmd.unwrap();
+            let engine = Engine {
+                engine: Arc::new(Mutex::new(process)),
+                movetime: DEFAULT_TIME,
+            };
+
+            // Execute the UCI command
+            let uci_result = engine.command("uci");
+            match uci_result {
+                Ok(response) => {
+                    if !response.trim_end().ends_with("uciok") {
+                        let _ = sender.send(Err(EngineError::Io(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "The selected file does not appear to be a UCI-compatible engine.",
+                        ))));
+                        println!("{}", response);
+                    } else {
+                        let _ = sender.send(Ok(engine));
+                    }
+                }
+                Err(err) => {
+                    let _ = sender.send(Err(err));
+                }
+            }
+        });
+
+        // Wait for the result with a timeout
+        match receiver.recv_timeout(Duration::from_secs(3)) {
+            Ok(result) => result,
+            Err(_) => Err(EngineError::Io(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "Engine initialization timed out.",
+            ))),
+        }
     }
 
     /// Changes the amount of time the engine spends looking for a move
@@ -314,9 +355,6 @@ pub enum EngineError {
     Message(String),
 }
 
-use log::{debug, info};
-
-use self::EngineError::{Io, UnknownOption};
 impl fmt::Display for EngineError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {

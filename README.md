@@ -9,7 +9,7 @@ While the server can be used for whatever. The script is specifically made for [
 
 ## How to Run
 
-> -   Download [Stockfish](https://stockfishchess.org/download/) ('Faster' version is recommended.).
+> -   Download [Stockfish](https://stockfishchess.org/download/) ('Faster' version is recommended).
 > -   Download latest release from [here](https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/roblox-chess-script.exe).
 > -   Run app and follow instructions until it says the server is running.
 > - Execute this script:
