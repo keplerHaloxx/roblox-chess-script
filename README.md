@@ -40,7 +40,7 @@ If you’d like your executor added to the compatibility list, please open an [i
 
 **✅ Supported**: Fully functional and tested.
 
-**⚠ Not Fully Tested**: May work but has not been confirmed.
+**⚠️ Not Fully Tested**: May work but has not been confirmed.
 
 **❓ Unknown**: Compatibility is uncertain.
 
