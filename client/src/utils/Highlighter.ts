@@ -51,7 +51,7 @@ export class Highlighter {
         this.destory()
     }
 
-    public static destoryAll() {
+    public static destroyAll() {
         Workspace.FindFirstChild("Board")
             ?.GetDescendants()
             .forEach((dec) => {
