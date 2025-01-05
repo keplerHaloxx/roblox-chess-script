@@ -1,7 +1,7 @@
 import Rayfield from "libs/Rayfield"
 import CoreGui from "utils/CoreGui"
 import findOrCreateFolder from "utils/findOrCreateFolder"
-import destoryErrorLogging from "utils/destoryErrorLogging"
+import destroyErrorLogging from "utils/destoryErrorLogging"
 import Board from "utils/LuaFuncs/board"
 import { Highlighter } from "utils/Highlighter"
 import findBestMove from "utils/findBestMove"
@@ -25,8 +25,8 @@ if (game.PlaceId !== 6222531507) {
 }
 
 // init
-Highlighter.destoryAll() // clear all old highlights
-destoryErrorLogging() // this remote reports client errors (we don't want that)
+Highlighter.destroyAll() // clear all old highlights
+destroyErrorLogging() // this remote reports client errors (we don't want that)
 findOrCreateFolder(CoreGui, "HighlightCache", "Folder") // create highlight cache
 
 const window = Rayfield.CreateWindow({
@@ -49,7 +49,11 @@ const board = new Board()
 function bestMove() {
     setBotStatus("Calculating")
 
-    const output = findBestMove(board, thinkTimeSlider.CurrentValue)
+    const output = findBestMove(
+        board,
+        depthSlider.CurrentValue,
+        thinkTimeSlider.CurrentValue
+    )
 
     task.spawn(() => {
         if (output[0] === false) {
@@ -73,7 +77,7 @@ function bestMove() {
             while (board.isPlayerTurn()) {
                 task.wait()
             }
-            Highlighter.destoryAll()
+            Highlighter.destroyAll()
         })
 
         setBotStatus("Idle")
@@ -143,7 +147,21 @@ task.spawn(() => {
 })
 
 mainTab.CreateSection("Bot Options")
-mainTab.CreateLabel("Maximum amount of time Stockfish has to think")
+
+// mainTab.CreateLabel("How many moves Stockfish thinks ahead")
+const depthSlider = mainTab.CreateSlider({
+    Name: "Depth",
+    Range: [10, 30],
+    Increment: 1,
+    Suffix: "moves",
+    CurrentValue: 17,
+    Flag: "Depth",
+    Callback: () => {},
+})
+
+// mainTab.CreateSection("")
+
+// mainTab.CreateLabel("Maximum amount of time Stockfish has to think")
 const thinkTimeSlider = mainTab.CreateSlider({
     Name: "Max Think Time",
     Range: [100, 5_000],

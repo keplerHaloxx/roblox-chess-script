@@ -13,6 +13,7 @@ interface MoveJsonData {
  */
 export = (
     board: Board,
+    depth: number,
     maxThinkTime: number
 ): [boolean, string, Instance?, Instance?] => {
     if (!board.isPlayerTurn()) return [false, "not your turn"]
@@ -25,6 +26,7 @@ export = (
     const ret = HttpGet(
         "http://127.0.0.1:3000/api/solve?fen=" + // localhost is the same as this but Wave flags it as dangerous
             HttpService.UrlEncode(board.board2fen()!) +
+            `&depth=${depth}` +
             `&max_think_time=${maxThinkTime}`
     )
     // eslint-disable-next-line roblox-ts/lua-truthiness
