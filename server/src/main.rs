@@ -32,9 +32,12 @@ async fn main() -> std::io::Result<()> {
     let (hash, threads, syzygy) = choose_engine_settings();
 
     let engine = initialize_engine(&stockfish_path, &hash, &threads, &syzygy);
-    set_stockfish_option(&engine, "Ponder", "true");
-    set_stockfish_option(&engine, "MultiPV", "5");
-    set_stockfish_option(&engine, "Move Overhead", "0");
+    // set_stockfish_option(&engine, "Ponder", "true");
+    // set_stockfish_option(&engine, "MultiPV", "5");
+    // set_stockfish_option(&engine, "Move Overhead", "0");
+    // just testing some settings
+    set_stockfish_option(&engine, "MultiPV", "0");
+    // set_stockfish_option(&engine, "Move Overhead", "10");
 
     Printer::println(
         f!("\nStarting server at http://localhost:{PORT}\n"),
@@ -82,8 +85,11 @@ fn choose_stockfish_file() -> String {
 async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -> impl Responder {
     let mut engine = data.engine.lock().unwrap();
 
-    Printer::print("Received FEN", CommonColors::BrightMagenta);
+    Printer::print("FEN", CommonColors::BrightMagenta);
     println!(": {}", query.fen);
+
+    Printer::print("Depth", CommonColors::BrightMagenta);
+    println!(": {}", query.depth.unwrap_or(17));
 
     Printer::print("Max Think Time", CommonColors::BrightMagenta);
     println!(": {}", query.max_think_time.unwrap_or(100));
@@ -109,11 +115,11 @@ async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -
     }
 
     // Use provided think time or default to 100ms
-    let max_think_time = query.max_think_time.unwrap_or(100);
-    engine.movetime(max_think_time);
+    engine.movetime(query.max_think_time.unwrap_or(100));
 
     // Get the best move
-    let best_move = match engine.bestmove_depth(17) {
+    // setting depth to 17 as default
+    let best_move = match engine.bestmove_depth(query.depth.unwrap_or(17)) {
         Ok(mv) => mv,
         Err(err) => {
             Printer::println(f!("Failed to get best move - {err}\n"), CommonColors::Red);
