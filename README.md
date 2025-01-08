@@ -28,7 +28,7 @@ While the server can be used for various purposes, the script is specifically de
     loadstring(game:HttpGet("https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/main.lua"))()
     ```
 
-## Executor Compatibility
+<!-- ## Executor Compatibility
 
 If you’d like your executor added to the compatibility list, please open an [issue](https://github.com/keplerHaloxx/roblox-chess-script/issues/new/choose).
 
@@ -42,7 +42,7 @@ If you’d like your executor added to the compatibility list, please open an [i
 
 **⚠️ Not Fully Tested**: May work but has not been confirmed.
 
-**❓ Unknown**: Compatibility is uncertain.
+**❓ Unknown**: Compatibility is uncertain. -->
 
 ## Notes
 
