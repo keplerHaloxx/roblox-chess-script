@@ -4,7 +4,7 @@
     "scripts": {
         "build": "bunx rbxtsc",
         "watch": "bunx rbxtsc -w",
-        "bundle": "bun run build; lune run wax bundle -- output=\"dist/roblox-chess-script.lua\""
+        "bundle": "bun run build; lune run wax bundle -- output=\"dist/main.lua\""
     },
     "author": "keplerHaloxx",
     "license": "MIT",
