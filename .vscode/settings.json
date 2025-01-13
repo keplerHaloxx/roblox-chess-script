@@ -1,3 +1,50 @@
 {
-    "stylua.targetReleaseVersion": "latest"
+    "stylua.targetReleaseVersion": "latest",
+    "hidefiles.configurationType": "local",
+    "hidefiles.globalConfig": {
+        "profiles": [
+            {
+                "name": "Default",
+                "detail": "",
+                "description": "Test",
+                "hidden": [".vscode/"],
+                "peek": [".vscode/"]
+            },
+            {
+                "name": "Strict",
+                "detail": "Hide everything not immediately required",
+                "hidden": [
+                    "$Default",
+                    "client/bun.lockb",
+                    "client/.eslintrc",
+                    "client/.gitattributes",
+                    "client/.gitignore",
+                    "client/.prettierrc",
+                    "client/place.project.json",
+                    "client/pnpm-lock.yaml",
+                    "client/node_modules/",
+                    "server/Cargo.lock"
+                ]
+            }
+        ]
+    },
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        ".vscode/": true,
+        "client/bun.lockb": true,
+        "client/.eslintrc": true,
+        "client/.gitattributes": true,
+        "client/.gitignore": true,
+        "client/.prettierrc": true,
+        "client/place.project.json": true,
+        "client/pnpm-lock.yaml": true,
+        "client/node_modules/": true,
+        "server/Cargo.lock": true
+    },
+    "hidefiles.selectedProfile": "Strict",
+    "robloxLsp.intelliSense.autoDetectLibraries": true
 }
