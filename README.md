@@ -28,6 +28,11 @@ While the server can be used for various purposes, the script is specifically de
     loadstring(game:HttpGet("https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/main.lua"))()
     ```
 
+## Known Problems
+
+It seems that Solara doesn't load Rayfield UI that well. If anyone would like to fork and have the app be with a different UI then please do so as I'm too lazy.
+
+
 <!-- ## Executor Compatibility
 
 If you’d like your executor added to the compatibility list, please open an [issue](https://github.com/keplerHaloxx/roblox-chess-script/issues/new/choose).
