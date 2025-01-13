@@ -1,6 +1,6 @@
 import Rayfield from "libs/Rayfield"
 import CoreGui from "utils/CoreGui"
-import findOrCreateFolder from "utils/findOrCreateFolder"
+import findOrCreateInstance from "utils/findOrCreateInstance"
 import destroyErrorLogging from "utils/destoryErrorLogging"
 import Board from "utils/LuaFuncs/board"
 import { Highlighter } from "utils/Highlighter"
@@ -27,15 +27,15 @@ if (game.PlaceId !== 6222531507) {
 // init
 Highlighter.destroyAll() // clear all old highlights
 destroyErrorLogging() // this remote reports client errors (we don't want that)
-findOrCreateFolder(CoreGui, "HighlightCache", "Folder") // create highlight cache
+findOrCreateInstance(CoreGui, "HighlightCache", "Folder") // create highlight cache
 
 const window = Rayfield.CreateWindow({
     Name: "Chess",
     LoadingTitle: "Chess ♟️",
     LoadingSubtitle: "By Haloxx",
 
-    DisableBuildWarnings: false,
-    DisableRayfieldPrompts: false,
+    DisableBuildWarnings: true,
+    DisableRayfieldPrompts: true,
 
     ConfigurationSaving: {
         Enabled: true,
