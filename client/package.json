@@ -1,23 +1,11 @@
 {
     "name": "roblox-chess-script",
-    "version": "1.0.0",
-    "description": "The client-side code for a chess game on Roblox",
     "main": "main.client.lua",
     "scripts": {
         "build": "bunx rbxtsc",
         "watch": "bunx rbxtsc -w",
-        "rojo": "mkdirp dist; rojo build -o dist/main.rbxm",
-        "bundle:dev": "bun run rojo; cross-env ENV=development remodel run ci/bundle.lua",
-        "bundle:prod": "bun run rojo; cross-env ENV=production remodel run ci/bundle.lua",
-        "bundle": "bun run bundle:dev; bun run bundle:prod",
-        "build-bundle": "bun run build; bun run bundle",
-        "action-pnpm-build": "pnpm exec rbxtsc",
-        "action-pnpm-rojo": "pnpm exec mkdirp dist && rojo build -o dist/main.rbxm",
-        "action-pnpm-bundle:dev": "pnpm run action-pnpm-rojo && cross-env ENV=development remodel run ci/bundle.lua",
-        "action-pnpm-bundle:prod": "pnpm run action-pnpm-rojo && cross-env ENV=production remodel run ci/bundle.lua",
-        "action-pnpm-bundle": "pnpm run action-pnpm-bundle:dev && pnpm run action-pnpm-bundle:prod"
+        "bundle": "bun run build; lune run wax bundle -- output=\"dist/roblox-chess-script.lua\""
     },
-    "keywords": [],
     "author": "keplerHaloxx",
     "license": "MIT",
     "devDependencies": {
