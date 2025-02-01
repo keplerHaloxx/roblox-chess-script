@@ -52,7 +52,8 @@ function bestMove() {
     const output = findBestMove(
         board,
         depthSlider.CurrentValue,
-        thinkTimeSlider.CurrentValue
+        thinkTimeSlider.CurrentValue,
+        disregardTimeToggle.CurrentValue
     )
 
     task.spawn(() => {
@@ -159,12 +160,20 @@ const depthSlider = mainTab.CreateSlider({
     Callback: () => {},
 })
 
-// mainTab.CreateSection("")
+mainTab.CreateLabel(
+    "When toggled, Stockfish will not stop thinking until it has reached the desired depth"
+)
+const disregardTimeToggle = mainTab.CreateToggle({
+    Name: "Disregard Think Time",
+    CurrentValue: false,
+    Flag: "DisregardThinkTime",
+    Callback: () => {},
+})
 
 // mainTab.CreateLabel("Maximum amount of time Stockfish has to think")
 const thinkTimeSlider = mainTab.CreateSlider({
-    Name: "Max Think Time",
-    Range: [100, 5_000],
+    Name: "Think Time",
+    Range: [10, 5_000],
     CurrentValue: 100,
     Flag: "MaxThinkTime",
     Suffix: "ms",
