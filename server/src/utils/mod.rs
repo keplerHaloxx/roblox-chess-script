@@ -9,6 +9,7 @@ pub struct SolveQueryParams {
     pub fen: String,
     pub max_think_time: Option<u32>,
     pub depth: Option<u32>,
+    pub disregard_think_time: Option<bool>,
 }
 
 #[derive(Serialize)]

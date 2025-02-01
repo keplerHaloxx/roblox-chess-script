@@ -94,6 +94,9 @@ async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -
     Printer::print("Max Think Time", CommonColors::BrightMagenta);
     println!(": {}", query.max_think_time.unwrap_or(100));
 
+    Printer::print("Disregard Think Time", CommonColors::BrightMagenta);
+    println!(": {}", query.disregard_think_time.unwrap_or(false));
+
     // Validate FEN
     if query.fen.parse::<Fen>().is_err() {
         Printer::println("Invalid FEN\n", CommonColors::Red);
@@ -119,7 +122,10 @@ async fn solve(data: web::Data<AppState>, query: web::Query<SolveQueryParams>) -
 
     // Get the best move
     // setting depth to 17 as default
-    let best_move = match engine.bestmove_depth(query.depth.unwrap_or(17)) {
+    let best_move = match engine.bestmove_depth(
+        query.depth.unwrap_or(17),
+        query.disregard_think_time.unwrap_or(false),
+    ) {
         Ok(mv) => mv,
         Err(err) => {
             Printer::println(f!("Failed to get best move - {err}\n"), CommonColors::Red);

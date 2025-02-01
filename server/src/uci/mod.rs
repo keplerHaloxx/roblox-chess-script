@@ -17,7 +17,6 @@ use self::EngineError::{Io, UnknownOption};
 #[derive(Clone)]
 pub struct Engine {
     engine: Arc<Mutex<Child>>,
-
     movetime: u32,
 }
 
@@ -160,10 +159,10 @@ impl Engine {
         ))
     }
 
-    #[allow(dead_code)]
     /// Returns the best move in the current position according to the engine
     /// # Errors
     /// Returns an error if the engine is not ready to return a move
+    #[allow(dead_code)]
     pub fn bestmove(&self) -> Result<String> {
         self.write_fmt(format_args!("go movetime {}\n", self.movetime))?;
         loop {
@@ -176,11 +175,16 @@ impl Engine {
     }
 
     /// Same as `bestmove` but it accepts a depth parameter
-    pub fn bestmove_depth(&self, depth: u32) -> Result<String> {
-        self.write_fmt(format_args!(
-            "go depth {} movetime {}\n",
-            self.movetime, depth
-        ))?;
+    pub fn bestmove_depth(&self, depth: u32, disregard_movetime: bool) -> Result<String> {
+        if disregard_movetime {
+            let _ = self.write_fmt(format_args!("go depth {}\n", depth));
+        } else {
+            let _ = self.write_fmt(format_args!(
+                "go depth {} movetime {}\n",
+                depth, self.movetime
+            ));
+        }
+
         loop {
             let s = self.read_line()?;
             debug!("{}", s);
