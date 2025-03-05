@@ -1,5 +1,12 @@
-import { RayfieldThemeBuilder, RayfieldThemes } from './RayfieldSettings'
+import { RayfieldThemeBuilder, RayfieldThemes } from "./RayfieldSettings"
 
+//
+// Comments came straight from Rayfield documenatation
+// https://docs.sirius.menu/rayfield
+//
+// When Gen2 comes out and at least a significant portion of the documentation has changed
+// I will probably rewrite this to look better and have more coherent documentation.
+//
 
 interface RayfieldWindowSettings {
     Name: string
@@ -81,9 +88,16 @@ interface Tab {
     ): ColorPicker & { Set(color: Color3): void }
     CreateSlider(options: Slider): Slider & { Set(value: number): void }
     CreateInput(options: Input): Input
-    CreateDropdown(
-        options: Dropdown
-    ): Dropdown & { Set(options: string[]): void }
+    CreateDropdown(options: Dropdown): Dropdown & {
+        /**
+         * The new selected options
+         */
+        Set(options: string[]): void
+        /**
+         * The new list of options available
+         */
+        Refresh(options: string[]): void
+    }
     CreateKeybind(options: Keybind): Keybind & { Set(held?: boolean): void }
     /**
      * @param Icon You can either use a Roblox image ID or a Lucide icon name. See [here](https://github.com/latte-soft/lucide-roblox/tree/master/icons/compiled/48px) for the supported icons.
@@ -98,8 +112,6 @@ interface Tab {
         options: Paragraph
     ): Paragraph & { Set(options: Paragraph): void }
 }
-
-interface Label {}
 
 interface Keybind {
     Name: string
@@ -161,5 +173,3 @@ interface Button {
 
 declare const Rayfield: Rayfield
 export = Rayfield
-// export declare const Rayfield: Rayfield
-
