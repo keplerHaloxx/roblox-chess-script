@@ -40,7 +40,7 @@ async fn main() -> std::io::Result<()> {
     // set_stockfish_option(&engine, "Move Overhead", "10");
 
     Printer::println(
-        f!("\nStarting server at http://localhost:{PORT}\n"),
+        f!("\nServer started at http://localhost:{PORT}\n"),
         CommonColors::BrightGreen,
     );
 
