@@ -39,7 +39,6 @@ impl Engine {
     ///
     /// [`Engine`]: struct.Engine.html
     pub fn new(path: &str) -> Result<Engine> {
-        // the amount of chatgpt stolen code is MASSIVE. you know what else is massive?
 
         let path = path.to_string(); // Move ownership of path into the thread
         let (sender, receiver) = sync::mpsc::channel();
