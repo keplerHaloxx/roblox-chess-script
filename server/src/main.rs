@@ -2,10 +2,7 @@ mod macros;
 mod uci;
 mod utils;
 
-use std::{
-    process::{exit, Command},
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use actix_web::{get, rt::time::Instant, web, App, HttpResponse, HttpServer, Responder};
 use macros::styled::f;
@@ -15,7 +12,8 @@ use uci::Engine;
 use utils::{
     color_print::{CommonColors, Printer},
     engine::{choose_engine_settings, initialize_engine},
-    SolveQueryParams, SolveResponse,
+    os::is_executable,
+    print_err_and_quit, SolveQueryParams, SolveResponse,
 };
 
 const PORT: u16 = 3000;
@@ -62,20 +60,27 @@ fn set_stockfish_option(engine: &Engine, option: &str, value: &str) {
 
 fn choose_stockfish_file() -> String {
     println!("Choose file for Stockfish.");
+    #[cfg(target_os = "windows")]
     let stockfish_path = FileDialog::new()
         .set_title("Choose location of Stockfish")
         .add_filter("Executable (*.exe)", &["exe"])
         .pick_file();
 
-    if stockfish_path.is_none() {
-        Printer::println(
-            "No file selected. Please select a file to continue.",
-            CommonColors::Red,
-        );
+    #[cfg(target_os = "macos")]
+    let stockfish_path = FileDialog::new()
+        .set_title("Choose location for Stockfish")
+        .pick_file();
 
-        let _ = Command::new("cmd.exe").arg("/c").arg("pause").status();
-        exit(1);
+    if stockfish_path.is_none() {
+        print_err_and_quit("Please select a file. Restart the program and select the Stockfish executable to continue.");
     }
+
+    // validate file on macos
+    #[cfg(target_os = "macos")]
+    if !is_executable(&stockfish_path.as_ref().unwrap()) {
+        print_err_and_quit("Invalid file selected. Restart the program and select the Stockfish executable to continue.");
+    }
+
     Printer::println("File chosen successfully!\n", CommonColors::BrightGreen);
 
     stockfish_path.unwrap().display().to_string()

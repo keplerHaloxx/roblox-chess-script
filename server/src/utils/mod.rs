@@ -1,7 +1,11 @@
 pub mod color_print;
 pub mod engine;
 pub mod input;
+pub mod os;
 
+use std::process::{exit, Command};
+
+use color_print::{CommonColors, Printer};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Debug)]
@@ -16,4 +20,11 @@ pub struct SolveQueryParams {
 pub struct SolveResponse {
     pub success: bool,
     pub result: String,
+}
+
+pub fn print_err_and_quit(msg: impl Into<String>) {
+    Printer::println(msg.into(), CommonColors::Red);
+
+    let _ = Command::new("cmd.exe").arg("/c").arg("pause").status();
+    exit(1);
 }
