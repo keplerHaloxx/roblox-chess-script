@@ -12,7 +12,6 @@ use uci::Engine;
 use utils::{
     color_print::{CommonColors, Printer},
     engine::{choose_engine_settings, initialize_engine},
-    os::is_executable,
     print_err_and_quit, SolveQueryParams, SolveResponse,
 };
 
@@ -77,7 +76,7 @@ fn choose_stockfish_file() -> String {
 
     // validate file on macos
     #[cfg(target_os = "macos")]
-    if !is_executable(&stockfish_path.as_ref().unwrap()) {
+    if !utils::os::is_executable(&stockfish_path.as_ref().unwrap()) {
         print_err_and_quit("Invalid file selected. Restart the program and select the Stockfish executable to continue.");
     }
 
