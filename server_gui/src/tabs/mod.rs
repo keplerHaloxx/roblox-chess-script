@@ -52,7 +52,15 @@ impl TabManager {
                     .title("Tabs")
                     .border_set(border::PLAIN)
                     .title_bottom(
-                        Line::from(vec![" Quit ".into(), "<Q> ".blue().bold()]).right_aligned(),
+                        Line::from(vec![
+                            " Left ".blue().bold(),
+                            "and ".into(),
+                            "Right ".blue().bold(),
+                            "arrow keys to change tabs ".into(),
+                            "| Quit ".into(),
+                            "[Q] ".blue().bold(),
+                        ])
+                        .right_aligned(),
                     ),
             )
             .highlight_style(Style::default().yellow())
