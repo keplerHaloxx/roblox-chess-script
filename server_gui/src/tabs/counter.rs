@@ -5,7 +5,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     prelude::*,
     symbols::border,
-    widgets::{Block, Padding, Paragraph},
+    widgets::{Block, Paragraph},
 };
 
 #[derive(Debug)]
@@ -28,9 +28,9 @@ impl Tab for Tab1 {
         let title = Line::from(" Counter App Tutorial ".bold());
         let instructions = Line::from(vec![
             " Decrement ".into(),
-            "<A>".blue().bold(),
+            "[A]".blue().bold(),
             " Increment ".into(),
-            "<D> ".blue().bold(),
+            "[D] ".blue().bold(),
         ]);
         let block = Block::bordered()
             .title(title)
