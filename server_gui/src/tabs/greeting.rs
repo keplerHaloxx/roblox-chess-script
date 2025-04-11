@@ -4,7 +4,7 @@ use super::Tab;
 use ratatui::{
     prelude::*,
     symbols::border,
-    widgets::{Block, Padding, Paragraph},
+    widgets::{Block, Paragraph},
 };
 
 #[derive(Debug)]
