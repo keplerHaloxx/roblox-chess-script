@@ -1,3 +1,5 @@
+use crate::widgets::Centre;
+
 use super::Tab;
 use ratatui::{
     prelude::*,
@@ -24,7 +26,7 @@ impl Tab for Tab2 {
         let block = Block::bordered()
             .title(title)
             .border_set(border::THICK)
-            .padding(Padding::new(0, 0, frame.area().height / 2 - 2, 0));
+            .centre(frame.area());
 
         let button = Paragraph::new("Hello!".bold().light_blue())
             .centered()
