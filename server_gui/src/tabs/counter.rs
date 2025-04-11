@@ -1,3 +1,5 @@
+use crate::widgets::Centre;
+
 use super::Tab;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
@@ -26,15 +28,15 @@ impl Tab for Tab1 {
         let title = Line::from(" Counter App Tutorial ".bold());
         let instructions = Line::from(vec![
             " Decrement ".into(),
-            "<Left>".blue().bold(),
+            "<A>".blue().bold(),
             " Increment ".into(),
-            "<Right>".blue().bold(),
+            "<D> ".blue().bold(),
         ]);
         let block = Block::bordered()
             .title(title)
             .title_bottom(instructions)
             .border_set(border::THICK)
-            .padding(Padding::new(0, 0, frame.area().height / 2 - 2, 0));
+            .centre(frame.area());
 
         let counter_text = Text::from(vec![Line::from(vec![
             "Value: ".into(),
@@ -48,10 +50,10 @@ impl Tab for Tab1 {
 
     fn handle_key_event(&mut self, key: KeyEvent) {
         match (key.modifiers, key.code) {
-            // handle increment
-            (_, KeyCode::Right) => self.counter += 1,
             // handle decrement
-            (_, KeyCode::Left) => self.counter -= 1,
+            (_, KeyCode::Char('a' | 'A')) => self.counter -= 1,
+            // handle increment
+            (_, KeyCode::Char('d' | 'D')) => self.counter += 1,
             _ => {}
         }
     }
