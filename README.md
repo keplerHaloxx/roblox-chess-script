@@ -66,7 +66,8 @@ If you’d like your executor added to the compatibility list, please open an [i
 
 ## Credits
 
-The communication with Stockfish's UCI protocol is based on the [uci](https://crates.io/crates/uci) crate, with slight modifications to work with this program.
+- The communication with Stockfish's UCI protocol is based on the [uci](https://crates.io/crates/uci) crate, with slight modifications to work with this program.
+- [bonezone2001's repo](https://github.com/bonezone2001/auto-chess-api/tree/main) that this project was originally a "fork" of (currently deleted idk why i did that)
 
 ## Disclaimer
 
