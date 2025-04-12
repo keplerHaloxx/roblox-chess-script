@@ -7,7 +7,7 @@ use ratatui::{
 pub trait Centre {
     fn centre(self, area: Rect) -> Self;
 }
-impl<'a> Centre for Block<'a> {
+impl Centre for Block<'_> {
     fn centre(self, area: Rect) -> Self {
         self.padding(Padding::new(0, 0, area.height / 2 - 3, 0))
     }
