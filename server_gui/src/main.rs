@@ -22,6 +22,7 @@ pub struct App {
 }
 
 impl App {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let mut tab_manager = TabManager::new();
 
