@@ -1,21 +1,24 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout, Rect},
-    style::{Style, Stylize},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Modifier, Style, Stylize},
     symbols::border,
     text::Line,
-    widgets::{Block, Tabs},
+    widgets::{Block, Borders, Tabs},
 };
 use std::fmt::Debug;
+
+use crate::keybindings::KeyBindings;
 
 pub mod counter;
 pub mod greeting;
 
 pub trait Tab: Debug {
     fn name(&self) -> &'static str;
-    fn render(&self, frame: &mut Frame, chunk: Rect);
+    fn render(&self, frame: &mut Frame, chunk: Rect, footer: Rect);
     fn handle_key_event(&mut self, key: KeyEvent);
+    fn keybindings(&self) -> KeyBindings;
 }
 
 #[derive(Debug)]
@@ -41,16 +44,42 @@ impl TabManager {
     }
 
     pub fn render(&self, frame: &mut Frame) {
-        let chunks = Layout::default()
-            .direction(ratatui::layout::Direction::Vertical)
+        // outer layer
+        let main_layout = Layout::new(
+            Direction::Vertical,
+            [
+                Constraint::Length(1),
+                Constraint::Min(1),
+                Constraint::Length(1),
+            ],
+        )
+        .split(frame.area());
+
+        // "roblox-chess-script" header
+        let header = Block::new()
+            .title(Line::from(vec![
+                "*".into(),
+                " roblox-chess-script ".light_yellow(),
+                "*".into(),
+            ]))
+            .add_modifier(Modifier::BOLD)
+            .add_modifier(Modifier::ITALIC)
+            .title_alignment(Alignment::Center)
+            .borders(Borders::TOP)
+            .border_style(Style::default().light_blue());
+        frame.render_widget(header, main_layout[0]);
+
+        // inner layer
+        let inner_layer = Layout::default()
+            .direction(Direction::Vertical)
             .constraints([Constraint::Length(3), Constraint::Min(0)])
-            .split(frame.area());
+            .split(main_layout[1]);
 
         let tabs = Tabs::new(self.tab_names())
             .block(
                 Block::bordered()
                     .title("Tabs")
-                    .border_set(border::PLAIN)
+                    .border_set(border::THICK)
                     .title_bottom(
                         Line::from(vec![
                             " Left ".blue().bold(),
@@ -65,10 +94,14 @@ impl TabManager {
             )
             .highlight_style(Style::default().yellow())
             .select(self.current_tab);
-        frame.render_widget(tabs, chunks[0]);
+        frame.render_widget(tabs, inner_layer[0]);
 
         if let Some(tab) = self.tabs.get(self.current_tab) {
-            tab.render(frame, chunks[1]);
+            tab.render(frame, inner_layer[1], main_layout[2]);
+
+            // Render keybindings in footer
+            let keybindings = tab.keybindings();
+            frame.render_widget(keybindings.to_footer(), main_layout[2]);
         }
     }
 

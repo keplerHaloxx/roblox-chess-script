@@ -1,3 +1,4 @@
+mod keybindings;
 mod tabs;
 mod widgets;
 

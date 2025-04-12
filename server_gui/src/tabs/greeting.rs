@@ -1,3 +1,4 @@
+use crate::keybindings::KeyBindings;
 use crate::widgets::Centre;
 
 use super::Tab;
@@ -21,11 +22,11 @@ impl Tab for Tab2 {
         "Greeting"
     }
 
-    fn render(&self, frame: &mut Frame, chunk: Rect) {
+    fn render(&self, frame: &mut Frame, chunk: Rect, _: Rect) {
         let title = Line::from(" Button Testing ".bold());
         let block = Block::bordered()
             .title(title)
-            .border_set(border::THICK)
+            .border_set(border::PLAIN)
             .centre(frame.area());
 
         let button = Paragraph::new("Hello!".bold().light_blue())
@@ -36,4 +37,8 @@ impl Tab for Tab2 {
     }
 
     fn handle_key_event(&mut self, _key: crossterm::event::KeyEvent) {}
+
+    fn keybindings(&self) -> KeyBindings {
+        KeyBindings::new()
+    }
 }

@@ -1,7 +1,8 @@
+use crate::keybindings::{KeyBinding, KeyBindings};
 use crate::widgets::Centre;
 
 use super::Tab;
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     prelude::*,
     symbols::border,
@@ -24,18 +25,11 @@ impl Tab for Tab1 {
         "Counter"
     }
 
-    fn render(&self, frame: &mut Frame, chunk: Rect) {
+    fn render(&self, frame: &mut Frame, chunk: Rect, _: Rect) {
         let title = Line::from(" Counter App Tutorial ".bold());
-        let instructions = Line::from(vec![
-            " Decrement ".into(),
-            "[A]".blue().bold(),
-            " Increment ".into(),
-            "[D] ".blue().bold(),
-        ]);
         let block = Block::bordered()
             .title(title)
-            .title_bottom(instructions)
-            .border_set(border::THICK)
+            .border_set(border::PLAIN)
             .centre(frame.area());
 
         let counter_text = Text::from(vec![Line::from(vec![
@@ -54,7 +48,19 @@ impl Tab for Tab1 {
             (_, KeyCode::Char('a' | 'A')) => self.counter -= 1,
             // handle increment
             (_, KeyCode::Char('d' | 'D')) => self.counter += 1,
+
+            (KeyModifiers::CONTROL, KeyCode::Char('p' | 'P')) => self.counter += 100,
             _ => {}
         }
+    }
+
+    fn keybindings(&self) -> KeyBindings {
+        let mut bindings = KeyBindings::new();
+        bindings.add(KeyBinding::new("Decrement", KeyCode::Char('A')));
+        bindings.add(KeyBinding::new("Increment", KeyCode::Char('D')));
+        bindings.add(
+            KeyBinding::new("Testing", KeyCode::Char('P')).with_modifiers(KeyModifiers::CONTROL),
+        );
+        bindings
     }
 }
