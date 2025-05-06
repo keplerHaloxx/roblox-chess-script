@@ -13,9 +13,64 @@ if debugX then
 	warn('Initialising Rayfield')
 end
 
-local requestsDisabled = getgenv and getgenv().DISABLE_RAYFIELD_REQUESTS
+local function getService(name)
+    local service = game:GetService(name)
+    return if cloneref then cloneref(service) else service
+end
+
+-- Loads and executes a function hosted on a remote URL. Cancels the request if the requested URL takes too long to respond.
+-- Errors with the function are caught and logged to the output
+local function loadWithTimeout(url: string, timeout: number?): ...any
+	assert(type(url) == "string", "Expected string, got " .. type(url))
+	timeout = timeout or 5
+	local requestCompleted = false
+	local success, result = false, nil
+
+	local requestThread = task.spawn(function()
+		local fetchSuccess, fetchResult = pcall(game.HttpGet, game, url) -- game:HttpGet(url)
+		-- If the request fails the content can be empty, even if fetchSuccess is true
+		if not fetchSuccess or #fetchResult == 0 then
+			if #fetchResult == 0 then
+				fetchResult = "Empty response" -- Set the error message
+			end
+			success, result = false, fetchResult
+			requestCompleted = true
+			return
+		end
+		local content = fetchResult -- Fetched content
+		local execSuccess, execResult = pcall(function()
+			return loadstring(content)()
+		end)
+		success, result = execSuccess, execResult
+		requestCompleted = true
+	end)
+
+	local timeoutThread = task.delay(timeout, function()
+		if not requestCompleted then
+			warn(`Request for {url} timed out after {timeout} seconds`)
+			task.cancel(requestThread)
+			result = "Request timed out"
+			requestCompleted = true
+		end
+	end)
+
+	-- Wait for completion or timeout
+	while not requestCompleted do
+		task.wait()
+	end
+	-- Cancel timeout thread if still running when request completes
+	if coroutine.status(timeoutThread) ~= "dead" then
+		task.cancel(timeoutThread)
+	end
+	if not success then
+		warn(`Failed to process {url}: {result}`)
+	end
+	return if success then result else nil
+end
+
+local requestsDisabled = true --getgenv and getgenv().DISABLE_RAYFIELD_REQUESTS
 local InterfaceBuild = '3K3W'
-local Release = "Build 1.671"
+local Release = "Build 1.672"
 local RayfieldFolder = "Rayfield"
 local ConfigurationFolder = RayfieldFolder.."/Configurations"
 local ConfigurationExtension = ".rfld"
@@ -32,15 +87,15 @@ local settingsTable = {
 	}
 }
 
-local HttpService = game:GetService("HttpService")
-local RunService = game:GetService("RunService")
+local HttpService = getService('HttpService')
+local RunService = getService('RunService')
 
 -- Environment Check
 local useStudio = RunService:IsStudio() or false
 
 local settingsCreated = false
 local cachedSettings
-local prompt = useStudio and require(script.Parent.prompt) or loadstring(game:HttpGet('https://raw.githubusercontent.com/SiriusSoftwareLtd/Sirius/refs/heads/request/prompt.lua'))()
+--local prompt = useStudio and require(script.Parent.prompt) or loadWithTimeout('https://raw.githubusercontent.com/SiriusSoftwareLtd/Sirius/refs/heads/request/prompt.lua')
 local request = (syn and syn.request) or (fluxus and fluxus.request) or (http and http.request) or http_request or request
 
 
@@ -148,11 +203,11 @@ if not requestsDisabled then
 			if debugX then warn('Reporting Analytics') end
 			task.spawn(function()
 				local success, reporter = pcall(function()
-					return loadstring(game:HttpGet("https://analytics.sirius.menu/reporter"))()
+					return loadstring(game:HttpGet("https://analytics.sirius.menu/v1/reporter", true))()
 				end)
 				if success and reporter then
 					pcall(function()
-						reporter.report("0193dbf8-7da1-79de-b399-2c0f68b0a9ad", Release, InterfaceBuild)
+						reporter.report("Rayfield", Release, InterfaceBuild)
 					end)
 				else
 					warn("Failed to load or execute the reporter. \nPlease notify Rayfield developers at sirius.menu/discord.")
@@ -556,10 +611,10 @@ local RayfieldLibrary = {
 
 
 -- Services
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
+local UserInputService = getService("UserInputService")
+local TweenService = getService("TweenService")
+local Players = getService("Players")
+local CoreGui = getService("CoreGui")
 
 -- Interface Management
 
@@ -649,9 +704,8 @@ local dragOffsetMobile = 150
 Rayfield.DisplayOrder = 100
 LoadingFrame.Version.Text = Release
 
-
-local Icons = useStudio and require(script.Parent.icons) or loadstring(game:HttpGet('https://raw.githubusercontent.com/SiriusSoftwareLtd/Rayfield/refs/heads/main/icons.lua'))()
-
+-- Thanks to Latte Softworks for the Lucide integration for Roblox
+local Icons = useStudio and require(script.Parent.icons) or loadWithTimeout('https://raw.githubusercontent.com/SiriusSoftwareLtd/Rayfield/refs/heads/main/icons.lua')
 -- Variables
 
 local CFileName = nil
@@ -710,10 +764,13 @@ local function ChangeTheme(Theme)
 	end
 end
 
-local function getIcon(name : string)
+local function getIcon(name : string): {id: number, imageRectSize: Vector2, imageRectOffset: Vector2}
+	if not Icons then
+		warn("Lucide Icons: Cannot use icons as icons library is not loaded")
+		return
+	end
 	name = string.match(string.lower(name), "^%s*(.*)%s*$") :: string
 	local sizedicons = Icons['48px']
-
 	local r = sizedicons[name]
 	if not r then
 		error(`Lucide Icons: Failed to find icon by the name of "{name}"`, 2)
@@ -737,6 +794,18 @@ local function getIcon(name : string)
 
 	return asset
 end
+-- Converts ID to asset URI. Returns rbxassetid://0 if ID is not a number
+local function getAssetUri(id: any): string
+	local assetUri = "rbxassetid://0" -- Default to empty image
+	if type(id) == "number" then
+		assetUri = "rbxassetid://" .. id
+	elseif type(id) == "string" and not Icons then
+		warn("Rayfield | Cannot use Lucide icons as icons library is not loaded")
+	else
+		warn("Rayfield | The icon argument must either be an icon ID (number) or a Lucide icon name (string)")
+	end
+	return assetUri
+end
 
 local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
 	local dragging = false
@@ -745,7 +814,7 @@ local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
 	local offset = Vector2.zero
 	local screenGui = object:FindFirstAncestorWhichIsA("ScreenGui")
 	if screenGui and screenGui.IgnoreGuiInset then
-		offset += game:GetService('GuiService'):GetGuiInset()
+		offset += getService('GuiService'):GetGuiInset()
 	end
 
 	local function connectFunctions()
@@ -921,14 +990,14 @@ function RayfieldLibrary:Notify(data) -- action e.g open messages
 		newNotification.Description.Text = data.Content or "Unknown Content"
 
 		if data.Image then
-			if typeof(data.Image) == 'string' then
+			if typeof(data.Image) == 'string' and Icons then
 				local asset = getIcon(data.Image)
 
 				newNotification.Icon.Image = 'rbxassetid://'..asset.id
 				newNotification.Icon.ImageRectOffset = asset.imageRectOffset
 				newNotification.Icon.ImageRectSize = asset.imageRectSize
 			else
-				newNotification.Icon.Image = "rbxassetid://" .. (data.Image or 0)
+				newNotification.Icon.Image = getAssetUri(data.Image)
 			end
 		else
 			newNotification.Icon.Image = "rbxassetid://" .. 0
@@ -1500,14 +1569,14 @@ function RayfieldLibrary:CreateWindow(Settings)
 		Topbar.Title.Position = UDim2.new(0, 47, 0.5, 0)
 
 		if Settings.Icon then
-			if typeof(Settings.Icon) == 'string' then
+			if typeof(Settings.Icon) == 'string' and Icons then
 				local asset = getIcon(Settings.Icon)
 
 				Topbar.Icon.Image = 'rbxassetid://'..asset.id
 				Topbar.Icon.ImageRectOffset = asset.imageRectOffset
 				Topbar.Icon.ImageRectSize = asset.imageRectSize
 			else
-				Topbar.Icon.Image = "rbxassetid://" .. (Settings.Icon or 0)
+				Topbar.Icon.Image = getAssetUri(Settings.Icon)
 			end
 		else
 			Topbar.Icon.Image = "rbxassetid://" .. 0
@@ -1849,14 +1918,14 @@ function RayfieldLibrary:CreateWindow(Settings)
 		TabButton.Size = UDim2.new(0, TabButton.Title.TextBounds.X + 30, 0, 30)
 
 		if Image and Image ~= 0 then
-			if typeof(Image) == 'string' then
+			if typeof(Image) == 'string' and Icons then
 				local asset = getIcon(Image)
 
 				TabButton.Image.Image = 'rbxassetid://'..asset.id
 				TabButton.Image.ImageRectOffset = asset.imageRectOffset
 				TabButton.Image.ImageRectSize = asset.imageRectSize
 			else
-				TabButton.Image.Image = "rbxassetid://"..Image
+				TabButton.Image.Image = getAssetUri(Image)
 			end
 
 			TabButton.Title.AnchorPoint = Vector2.new(0, 0.5)
@@ -2336,14 +2405,14 @@ function RayfieldLibrary:CreateWindow(Settings)
 			Label.UIStroke.Color = Color or SelectedTheme.SecondaryElementStroke
 
 			if Icon then
-				if typeof(Icon) == 'string' then
+				if typeof(Icon) == 'string' and Icons then
 					local asset = getIcon(Icon)
 
 					Label.Icon.Image = 'rbxassetid://'..asset.id
 					Label.Icon.ImageRectOffset = asset.imageRectOffset
 					Label.Icon.ImageRectSize = asset.imageRectSize
 				else
-					Label.Icon.Image = "rbxassetid://" .. (Icon or 0)
+					Label.Icon.Image = getAssetUri(Icon)
 				end
 			else
 				Label.Icon.Image = "rbxassetid://" .. 0
@@ -2354,14 +2423,14 @@ function RayfieldLibrary:CreateWindow(Settings)
 				Label.Title.Size = UDim2.new(1, -100, 0, 14)
 
 				if Icon then
-					if typeof(Icon) == 'string' then
+					if typeof(Icon) == 'string' and Icons then
 						local asset = getIcon(Icon)
 
 						Label.Icon.Image = 'rbxassetid://'..asset.id
 						Label.Icon.ImageRectOffset = asset.imageRectOffset
 						Label.Icon.ImageRectSize = asset.imageRectSize
 					else
-						Label.Icon.Image = "rbxassetid://" .. (Icon or 0)
+						Label.Icon.Image = getAssetUri(Icon)
 					end
 				else
 					Label.Icon.Image = "rbxassetid://" .. 0
@@ -2393,14 +2462,14 @@ function RayfieldLibrary:CreateWindow(Settings)
 					Label.Title.Size = UDim2.new(1, -100, 0, 14)
 
 					if Icon then
-						if typeof(Icon) == 'string' then
+						if typeof(Icon) == 'string' and Icons then
 							local asset = getIcon(Icon)
 
 							Label.Icon.Image = 'rbxassetid://'..asset.id
 							Label.Icon.ImageRectOffset = asset.imageRectOffset
 							Label.Icon.ImageRectSize = asset.imageRectSize
 						else
-							Label.Icon.Image = "rbxassetid://" .. (Icon or 0)
+							Label.Icon.Image = getAssetUri(Icon)
 						end
 					else
 						Label.Icon.Image = "rbxassetid://" .. 0
@@ -3838,16 +3907,9 @@ if CEnabled and Main:FindFirstChild('Notice') then
 	TweenService:Create(Main.Notice.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0.1}):Play()
 end
 
-if not useStudio then
-	local success, result = pcall(function()
-		loadstring(game:HttpGet('https://raw.githubusercontent.com/SiriusSoftwareLtd/Sirius/refs/heads/request/boost.lua'))()
-	end)
-
-	if not success then
-		print('Error with boost file.')
-		print(result)
-	end
-end
+-- if not useStudio then
+-- 	task.spawn(loadWithTimeout, "https://raw.githubusercontent.com/SiriusSoftwareLtd/Sirius/refs/heads/request/boost.lua")
+-- end
 
 task.delay(4, function()
 	RayfieldLibrary.LoadConfiguration()
