@@ -1,0 +1,48 @@
+name: Release
+
+on:
+    workflow_dispatch:
+
+jobs:
+    client:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v3
+
+            - name: Setup Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+                  cache: "npm"
+                  cache-dependency-path: |
+                      client/package-lock.json
+                      client/package.json
+                  token: ${{ github.token}}
+
+            - name: Install NPM Dependencies
+              run: npm install
+
+            - name: Setup Aftman
+              uses: ok-nick/setup-aftman@v0.4.2
+              with:
+                  path: client
+                  cache: true
+                  token: ${{ github.token }}
+
+            - name: Install Lune
+              working-directory: client
+              run: |
+                  aftman install
+
+            - name: Build Client
+              working-directory: client
+              run: npm run bundle-ci
+
+    # server-macos:
+    #   runs-on: macos-latest
+#
+# steps:
+#   - name: Setup Rust
+#     run:
