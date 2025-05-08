@@ -22,7 +22,7 @@ if you have any suggestions!
 
 2. **Download the Latest Release**
 
-    - Download the latest release of the script from [_here_](https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/roblox-chess-script.exe).
+    - Download the latest release of the script from [_here_](https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/roblox-chess-script-windows-x64.exe).
     - **IMPORTANT**: If the file does not exist when going to the link, wait around 5 minutes and try again. This is because an update was recently made and the file is still being uploaded.
 
 3. **Run the Application**
@@ -40,7 +40,7 @@ if you have any suggestions!
 
 ## Known Problems
 
-It seems that Solara doesn't load Rayfield UI that well. If anyone would like to fork and have the app be with a different UI then please do so as I'm too lazy.
+It seems that Solara and Xeno doesn't load Rayfield UI that well. If anyone would like to fork and have the app be with a different UI then please do so as I'm too lazy.
 
 <!-- ## Executor Compatibility
 
