@@ -90,12 +90,12 @@ jobs:
               working-directory: server
               run: cargo build --release
 
-            - run: cp ./server/target/release/roblox-chess-script ./roblox-chess-script-apple-darwin
+            - run: cp ./server/target/release/roblox-chess-script ./roblox-chess-script-aarch64-apple
             - name: Upload Client Artifact
               uses: softprops/action-gh-release@v1
               with:
                   tag_name: ${{ github.event.inputs.tag }}
-                  files: ./roblox-chess-script-apple-darwin
+                  files: ./roblox-chess-script-aarch64-apple
 
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
