@@ -5,7 +5,7 @@
         "build": "npx rbxtsc",
         "watch": "npx rbxtsc -w",
         "bundle": "npm run build; mkdir -p dist; lune run wax bundle -- output=\"dist/main.lua\"",
-        "bundle-ci": "npm run build; mkdir -p dist; lune run wax bundle -- output=\"dist/main.lua\" ci-mode"
+        "bundle-ci": "npm run build; mkdir -p dist; lune run wax bundle -- output=\"dist/main.lua\" ci-mode=true"
     },
     "author": "keplerHaloxx",
     "license": "MIT",
