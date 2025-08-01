@@ -3,7 +3,7 @@
 Get chess moves from Stockfish and display them in Roblox.
 
 While the server can be used for various purposes, the script is specifically designed for [this game](https://www.roblox.com/games/6222531507/CHESS). No other game will be supported.
-
+<!--
 ## Announcement
 
 The next version of the server will probably be version 2.0.
@@ -13,7 +13,7 @@ Stockfish's settings should be a lot easier to change and
 you'll most likely be able to see performance and activity better
 (still working on what will be added). Feel free to open an issue
 if you have any suggestions!
-
+-->
 ## How to Run
 
 1. **Download Stockfish**
