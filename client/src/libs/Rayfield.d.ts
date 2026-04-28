@@ -17,9 +17,13 @@ interface RayfieldWindowSettings {
     /** Check https://docs.sirius.menu/rayfield/configuration/themes for updated themes */
     Theme?: RayfieldThemes | RayfieldThemeBuilder
 
+    ToggleUIKeybind?: string,
+
     DisableRayfieldPrompts?: boolean
     /** Prevents Rayfield from warning when the script has a version mismatch with the interface. */
-    DisableBuildWarnings?: boolean
+    DisableBuildWarnings?: boolean,
+
+    ScriptID?: String,
 
     ConfigurationSaving?: {
         Enabled: boolean
