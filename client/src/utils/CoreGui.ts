@@ -1,1 +1,1 @@
-export = game.FindService("CoreGui")!
+export default game.FindService("CoreGui")!

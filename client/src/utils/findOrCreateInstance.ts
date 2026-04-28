@@ -1,8 +1,8 @@
-function findOrCreateInstance(
+export default (
     parent: Instance,
     child: string,
     instance: keyof CreatableInstances
-): Instance | undefined {
+): Instance | undefined => {
     if (parent.FindFirstChild(child)) return parent
 
     const new_instance = new Instance(instance)
@@ -11,5 +11,3 @@ function findOrCreateInstance(
 
     return new_instance
 }
-
-export = findOrCreateInstance

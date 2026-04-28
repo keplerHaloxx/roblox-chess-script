@@ -2,16 +2,12 @@ import { HttpService, Workspace } from "@rbxts/services"
 import HttpGet from "./HttpGet"
 import Board from "./LuaFuncs/board"
 import getPosFromResult from "./getPosFromResult"
-
-interface MoveJsonData {
-    success: boolean
-    result: string
-}
+import { MoveJsonData } from '@/types/server';
 
 /**
  * Does a ton of checks and gets the best move
  */
-export = (
+export default (
     board: Board,
     depth: number,
     maxThinkTime: number,
@@ -25,7 +21,7 @@ export = (
     }
 
     const ret = HttpGet(
-        "http://127.0.0.1:3000/api/solve?fen=" + // localhost is the same as this but Wave flags it as dangerous
+        "http://127.0.0.1:3000/api/solve?fen=" +
             HttpService.UrlEncode(board.board2fen()!) +
             `&depth=${depth}` +
             `&max_think_time=${maxThinkTime}` +
