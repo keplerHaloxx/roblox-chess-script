@@ -15,7 +15,7 @@
 		"plugin:roblox-ts/recommended",
 		"plugin:prettier/recommended"
 	],
-	"rules": {
-		"prettier/prettier": "off" // kinda dumb if you have this but for some reason the entire project breaks for me
-	}
+	// "rules": {
+	// 	"prettier/prettier": "off" // kinda dumb if you have this but for some reason the entire project breaks for me
+	// }
 }
