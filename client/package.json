@@ -27,6 +27,7 @@
     },
     "dependencies": {
         "@rbxts/services": "1.6.0",
-        "rbxts-transform-debug": "2.2.0"
+        "rbxts-transform-debug": "2.2.0",
+        "rbxts-transform-env": "^3.0.0"
     }
 }

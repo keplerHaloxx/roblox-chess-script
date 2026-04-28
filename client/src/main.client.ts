@@ -1,12 +1,13 @@
-import Rayfield from "libs/Rayfield"
-import CoreGui from "utils/CoreGui"
-import findOrCreateInstance from "utils/findOrCreateInstance"
-import destroyErrorLogging from "utils/destoryErrorLogging"
-import Board from "utils/LuaFuncs/board"
-import { Highlighter } from "utils/Highlighter"
-import findBestMove from "utils/findBestMove"
+import Rayfield from "@libs/Rayfield"
+import CoreGui from "@utils/CoreGui"
+import findOrCreateInstance from "@utils/findOrCreateInstance"
+import Board from "@utils/LuaFuncs/board"
+import { Highlighter } from "@utils/Highlighter"
+import findBestMove from "@utils/findBestMove"
 import { StarterGui } from "@rbxts/services"
-import { ensure_executor_functions_access, queue_on_teleport } from "libs/Unc"
+import { ensure_executor_functions_access, queue_on_teleport } from "@libs/Unc"
+import { $env } from "rbxts-transform-env"
+import destroyErrorLogging from "@utils/destoryErrorLogging"
 
 const notiBindableFunc = new Instance("BindableFunction")
 notiBindableFunc.OnInvoke = (buttonName: string) => {
@@ -33,6 +34,7 @@ const window = Rayfield.CreateWindow({
     Name: "Chess",
     LoadingTitle: "Chess ♟️",
     LoadingSubtitle: "By Haloxx",
+    ScriptID: $env.string("RAYFIELD_SCRIPT_ID"),
 
     DisableBuildWarnings: true,
     DisableRayfieldPrompts: true,
