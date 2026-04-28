@@ -28,5 +28,5 @@ stockfish.exe
 selene.toml
 *temp*
 /syzygy
-script.luau
 stockfish
+script.luau

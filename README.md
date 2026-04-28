@@ -3,7 +3,7 @@
 Get chess moves from Stockfish and display them in Roblox.
 
 While the server can be used for various purposes, the script is specifically designed for [this game](https://www.roblox.com/games/6222531507/CHESS). No other game will be supported.
-
+<!--
 ## Announcement
 
 The next version of the server will probably be version 2.0.
@@ -13,7 +13,7 @@ Stockfish's settings should be a lot easier to change and
 you'll most likely be able to see performance and activity better
 (still working on what will be added). Feel free to open an issue
 if you have any suggestions!
-
+-->
 ## How to Run
 
 1. **Download Stockfish**
@@ -22,7 +22,7 @@ if you have any suggestions!
 
 2. **Download the Latest Release**
 
-    - Download the latest release of the script from [_here_](https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/roblox-chess-script.exe).
+    - Download the latest release of the script from [_here_](https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/roblox-chess-script-windows-x64.exe).
     - **IMPORTANT**: If the file does not exist when going to the link, wait around 5 minutes and try again. This is because an update was recently made and the file is still being uploaded.
 
 3. **Run the Application**
@@ -40,7 +40,7 @@ if you have any suggestions!
 
 ## Known Problems
 
-It seems that Solara doesn't load Rayfield UI that well. If anyone would like to fork and have the app be with a different UI then please do so as I'm too lazy.
+It seems that Solara and Xeno doesn't load Rayfield UI that well. If anyone would like to fork and have the app be with a different UI then please do so as I'm too lazy.
 
 <!-- ## Executor Compatibility
 
@@ -67,7 +67,7 @@ If you’d like your executor added to the compatibility list, please open an [i
 ## Credits
 
 - The communication with Stockfish's UCI protocol is based on the [uci](https://crates.io/crates/uci) crate, with slight modifications to work with this program.
-- [bonezone2001's repo](https://github.com/bonezone2001/auto-chess-api/tree/main) that this project was originally a "fork" of (currently deleted idk why i did that)
+- [bonezone2001's repo](https://github.com/bonezone2001/auto-chess-api) that this project was originally a "fork" of (currently deleted idk why i did that)
 
 ## Disclaimer
 

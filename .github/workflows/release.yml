@@ -1,0 +1,145 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.0.0)"
+        required: true
+      draft:
+        description: "Whether this is a draft release"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  client:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            client/package.json
+
+      - name: Install NPM Dependencies
+        working-directory: client
+        run: npm install
+
+      - name: Setup Aftman
+        uses: ok-nick/setup-aftman@v0.4.2
+        with:
+          path: client
+          cache: true
+
+      - name: Install Lune
+        working-directory: client
+        run: aftman install
+
+      - name: Build Client
+        working-directory: client
+        run: npm run bundle-ci
+
+      - name: Upload Client Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: client
+          path: client/dist/main.lua
+
+  server-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Cache Rust dependencies & build outputs
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            server -> target
+
+      - name: Build Server (macOS)
+        working-directory: server
+        run: cargo build --release
+
+      - name: Copy Binary
+        run: |
+          cp server/target/release/roblox-chess-script ./roblox-chess-script-aarch64-apple
+
+      - name: Upload macOS Server Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: server-macos
+          path: roblox-chess-script-aarch64-apple
+
+  server-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Cache Rust dependencies & build outputs
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            server -> target
+
+      - name: Build Server (Windows)
+        working-directory: server
+        run: cargo build --release
+
+      - name: Copy Binary
+        run: |
+          cp server/target/release/roblox-chess-script.exe roblox-chess-script-windows-x64.exe
+
+      - name: Upload Windows Server Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: server-windows
+          path: roblox-chess-script-windows-x64.exe
+
+  create-release:
+    needs: [client, server-macos, server-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Client Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: client
+          path: artifacts/
+
+      - name: Download macOS Server Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: server-macos
+          path: artifacts/
+
+      - name: Download Windows Server Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: server-windows
+          path: artifacts/
+
+      - name: Create GitHub Release & Upload Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.tag }}
+          draft: ${{ github.event.inputs.draft }}
+          files: |
+            artifacts/main.lua
+            artifacts/roblox-chess-script-aarch64-apple
+            artifacts/roblox-chess-script-windows-x64.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
