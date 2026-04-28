@@ -2,9 +2,11 @@
     "name": "roblox-chess-script",
     "main": "main.client.lua",
     "scripts": {
-        "build": "npx rbxtsc",
-        "watch": "npx rbxtsc -w",
-        "bundle": "bun run build; mkdir -p dist; lune run wax bundle -- output=\"dist/main.lua\""
+        "build": "rbxtsc",
+        "watch": "rbxtsc -w",
+        "clean": "npx rimraf dist out",
+        "prebundle": "pnpm run build && npx mkdirp dist",
+        "bundle": "pnpm run prebundle && lune run wax bundle input=default.project.json output=dist/main.lua"
     },
     "author": "keplerHaloxx",
     "license": "MIT",
