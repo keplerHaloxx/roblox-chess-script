@@ -26,7 +26,7 @@
         "typescript": "5.9.3"
     },
     "dependencies": {
-        "@rbxts/services": "^1.5.5",
-        "rbxts-transform-debug": "^2.2.0"
+        "@rbxts/services": "1.6.0",
+        "rbxts-transform-debug": "2.2.0"
     }
 }
