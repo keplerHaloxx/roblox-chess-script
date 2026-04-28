@@ -1,34 +1,46 @@
 {
     "compilerOptions": {
-        // required
-        "allowSyntheticDefaultImports": true,
-        "downlevelIteration": true,
-        "jsx": "react",
-        "jsxFactory": "Roact.createElement",
-        "jsxFragmentFactory": "Roact.createFragment",
-        "module": "commonjs",
+        "target": "ESNext",
+        "module": "CommonJS",
         "moduleResolution": "Node",
+
+        "strict": true,
         "noLib": true,
-        "resolveJsonModule": true,
+        "skipLibCheck": true,
+        "noUncheckedIndexedAccess": true,
+
+        "allowSyntheticDefaultImports": true,
         "experimentalDecorators": true,
         "forceConsistentCasingInFileNames": true,
-        "moduleDetection": "force",
-        "strict": true,
-        "target": "ESNext",
-        "typeRoots": ["node_modules/@rbxts"],
 
-        // configurable
+        "moduleDetection": "force",
+
         "rootDir": "src",
         "outDir": "out",
-        "baseUrl": "src",
         "incremental": true,
         "tsBuildInfoFile": "out/tsconfig.tsbuildinfo",
+
+        "typeRoots": ["node_modules/@rbxts"],
+
+        "baseUrl": ".",
+        "paths": {
+            "@/*": ["src/*"],
+            "@utils/*": ["src/utils/*"],
+            "@libs/*": ["src/libs/*"]
+        },
+
         "plugins": [
             {
+                "name": "debug",
                 "transform": "rbxts-transform-debug",
                 "enabled": true,
                 "verbose": true
+            },
+            {
+                "name": "env",
+                "transform": "rbxts-transform-env"
             }
         ]
-    }
+    },
+    "include": ["src"]
 }
