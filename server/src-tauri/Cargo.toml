@@ -1,0 +1,49 @@
+[package]
+name = "roblox-chess-script"
+version = "2.0.0"
+description = "A Tauri App"
+authors = ["Haloxx"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "roblox_chess_script_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.0", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+axum = { version = "0.8", features = ["json", "macros"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["trace"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+directories = "6.0"
+shakmaty = "0.30.0"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.8", features = ["v4", "serde"] }
+reqwest = { version = "0.13.3", default-features = false, features = [
+    "json",
+    "native-tls",
+] }
+zip = "8.6.0"
+tar = "0.4"
+flate2 = "1.0"
+rfd = "0.17.2"
+which = "8.0.2"
+
+[dev-dependencies]
+tempfile = "3.10"
+tower = { version = "0.5", features = ["util"] }

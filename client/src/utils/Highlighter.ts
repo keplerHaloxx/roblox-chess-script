@@ -1,5 +1,5 @@
 import { Workspace } from "@rbxts/services"
-import CoreGui from "./CoreGui"
+import CoreGui from "@utils/coreGui"
 
 export interface HighlightOptions {
     Name?: string
@@ -11,61 +11,71 @@ export interface HighlightOptions {
     Parent?: Instance
 }
 
+const STORAGE_NAME = "HighlightStorage"
+const DEFAULT_FILL_COLOR = Color3.fromRGB(59, 235, 223)
+const DEFAULT_OUTLINE_COLOR = Color3.fromRGB(255, 255, 255)
+
 export class Highlighter {
-    public highlight!: Highlight
+    public readonly highlight: Highlight
 
     public constructor(target: Instance, options?: HighlightOptions) {
-        if (!CoreGui.FindFirstChild("HighlightStorage")) {
-            const folder = new Instance("Folder")
-            folder.Name = "HighlightStorage"
-            folder.Parent = CoreGui
+        const storage = Highlighter.getOrCreateStorage()
+
+        const alreadyHighlighted = storage
+            .GetChildren()
+            .some((child) => child.IsA("Highlight") && child.Adornee === target)
+
+        if (alreadyHighlighted) {
+            warn(
+                `Attempted to highlight an already-highlighted instance: ${target.Name}`
+            )
         }
 
-        const highlighterStorage = CoreGui.FindFirstChild("HighlightStorage")!
-
-        highlighterStorage.GetChildren().forEach((child) => {
-            if (child.IsA("Highlight") && child.Adornee === target) {
-                warn("trying to highlight already highlighted object")
-                return
-            }
-        })
-
-        // confusing asl but we gotta work with it
-        const _highlight = new Instance("Highlight")
-        _highlight.Name = options?.Name ?? "Highlight"
-        _highlight.FillColor =
-            options?.FillColor ?? Color3.fromRGB(59, 235, 223)
-        _highlight.DepthMode =
+        const highlight = new Instance("Highlight")
+        highlight.Name = options?.Name ?? "Highlight"
+        highlight.FillColor = options?.FillColor ?? DEFAULT_FILL_COLOR
+        highlight.DepthMode =
             options?.DepthMode ?? Enum.HighlightDepthMode.AlwaysOnTop
-        _highlight.FillTransparency = options?.FillTransparency ?? 0.5
-        _highlight.OutlineColor =
-            options?.OutlineColor ?? Color3.fromRGB(255, 255, 255)
-        _highlight.OutlineTransparency = options?.OutlineTransparency ?? 0
-        _highlight.Parent = options?.Parent ?? highlighterStorage
-        _highlight.Adornee = target
+        highlight.FillTransparency = options?.FillTransparency ?? 0.5
+        highlight.OutlineColor = options?.OutlineColor ?? DEFAULT_OUTLINE_COLOR
+        highlight.OutlineTransparency = options?.OutlineTransparency ?? 0
+        highlight.Parent = options?.Parent ?? storage
+        highlight.Adornee = target
 
-        this.highlight = _highlight
+        this.highlight = highlight
     }
 
-    public destory() {
-        this.destory()
+    /**
+     * Destroys the underlying Highlight instance.
+     */
+    public destroy(): void {
+        this.highlight.Destroy()
     }
 
-    public static destroyAll() {
-        Workspace.FindFirstChild("Board")
-            ?.GetDescendants()
-            .forEach((dec) => {
-                if (dec.IsA("Highlight")) dec.Destroy()
+    /**
+     * Removes every Highlight from the board, pieces, and the CoreGui cache.
+     */
+    public static destroyAll(): void {
+        const destroyHighlightsIn = (parent: Instance | undefined) =>
+            parent?.GetDescendants().forEach((child) => {
+                if (child.IsA("Highlight")) child.Destroy()
             })
 
-        Workspace.FindFirstChild("Pieces")
-            ?.GetDescendants()
-            .forEach((dec) => {
-                if (dec.IsA("Highlight")) dec.Destroy()
-            })
+        destroyHighlightsIn(Workspace.FindFirstChild("Board"))
+        destroyHighlightsIn(Workspace.FindFirstChild("Pieces"))
 
-        CoreGui.FindFirstChild("HighlightStorage")
+        CoreGui.FindFirstChild(STORAGE_NAME)
             ?.GetDescendants()
-            .forEach((dec) => dec.Destroy())
+            .forEach((child) => child.Destroy())
+    }
+
+    private static getOrCreateStorage(): Instance {
+        const existing = CoreGui.FindFirstChild(STORAGE_NAME)
+        if (existing) return existing
+
+        const folder = new Instance("Folder")
+        folder.Name = STORAGE_NAME
+        folder.Parent = CoreGui
+        return folder
     }
 }

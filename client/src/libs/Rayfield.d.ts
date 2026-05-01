@@ -1,4 +1,4 @@
-import { RayfieldThemeBuilder, RayfieldThemes } from "./RayfieldSettings"
+import { RayfieldThemeBuilder, RayfieldThemes } from "@libs/RayfieldSettings"
 
 //
 // Comments came straight from Rayfield documenatation
@@ -17,13 +17,13 @@ interface RayfieldWindowSettings {
     /** Check https://docs.sirius.menu/rayfield/configuration/themes for updated themes */
     Theme?: RayfieldThemes | RayfieldThemeBuilder
 
-    ToggleUIKeybind?: string,
+    ToggleUIKeybind?: string
 
     DisableRayfieldPrompts?: boolean
     /** Prevents Rayfield from warning when the script has a version mismatch with the interface. */
-    DisableBuildWarnings?: boolean,
+    DisableBuildWarnings?: boolean
 
-    ScriptID?: String,
+    ScriptID?: String
 
     ConfigurationSaving?: {
         Enabled: boolean
@@ -76,6 +76,7 @@ interface Window {
      * @param image You can either use a Roblox image ID or a Lucide icon name. See [here](https://github.com/latte-soft/lucide-roblox/tree/master/icons/compiled/48px) for the supported icons.
      */
     CreateTab(name: string, image?: number | string): Tab
+    ModifyTheme: (theme: `${RayfieldThemes}`) => void
 }
 
 type Paragraph = { Title: string; Content: string }
@@ -83,7 +84,7 @@ interface Tab {
     CreateSection(label: string): { Set(label: string): void }
     CreateDivider(): {
         /** Whether the divider's visibility is to be set to true or false. */
-        Set(label: boolean): void
+        Set(visibility: boolean): void
     }
     CreateButton(options: Button): Button & { Set(label: string): void }
     CreateToggle(options: Toggle): Toggle & { Set(state: boolean): void }

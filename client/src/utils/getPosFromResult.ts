@@ -1,15 +1,14 @@
+// Chess columns are labelled a–h (ASCII 97–104).
+// The board is mirrored: 'a' → x=8, 'h' → x=1.
+const columnCharToX = (char: string): number => 9 - (string.byte(char)[0]! - 96)
+
 export default (result: string): LuaTuple<[number, number, number, number]> => {
     const chars = result.split("")
-    const charsMap = new Map<string, string>()
-    chars.forEach((c, i) => {
-        charsMap.set(tostring(i), c)
-    })
 
-    const x1 = 9 - (string.byte(charsMap.get("0")!)[0]! - 96)
-    const y1 = tonumber(charsMap.get("1")!)!
+    const x1 = columnCharToX(chars[0]!)
+    const y1 = tonumber(chars[1])!
+    const x2 = columnCharToX(chars[2]!)
+    const y2 = tonumber(chars[3])!
 
-    const x2 = 9 - (string.byte(charsMap.get("2")!)[0]! - 96)
-    const y2 = tonumber(charsMap.get("3")!)!
-
-    return [x1, y1, x2, y2] as LuaTuple<[number, number, number, number]>
+    return $tuple(x1, y1, x2, y2)
 }

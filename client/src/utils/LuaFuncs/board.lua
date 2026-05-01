@@ -1,220 +1,321 @@
-local mod = {
-	pieces = {
-		["Pawn"] = "p",
-		["Knight"] = "n",
-		["Bishop"] = "b",
-		["Rook"] = "r",
-		["Queen"] = "q",
-		["King"] = "k",
-	},
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+
+local ChessHelper = {}
+
+ChessHelper.__index = ChessHelper
+
+ChessHelper.Pieces = {
+	Pawn = "p",
+	Knight = "n",
+	Bishop = "b",
+	Rook = "r",
+	Queen = "q",
+	King = "k",
 }
-mod.__index = mod
 
-local lplayer = game:GetService("Players").LocalPlayer
+local function samePosition(a, b)
+	return a and b and a[1] == b[1] and a[2] == b[2]
+end
 
----@return any[]
-function mod.getClient()
-	for _, v in pairs(getreg()) do
-		if type(v) == "function" and not iscclosure(v) then
-			for _, v in pairs(debug.getupvalues(v)) do
-				if type(v) == "table" and v.processRound then
-					return v
+local function getPieceAtPosition(board, position)
+	for _, piece in pairs(board.whitePieces or {}) do
+		if piece.position and samePosition(piece.position, position) then
+			return piece
+		end
+	end
+
+	for _, piece in pairs(board.blackPieces or {}) do
+		if piece.position and samePosition(piece.position, position) then
+			return piece
+		end
+	end
+
+	return nil
+end
+
+local function findClient()
+	for _, fn in pairs(getreg()) do
+		if type(fn) == "function" and not iscclosure(fn) then
+			for _, upvalue in pairs(debug.getupvalues(fn)) do
+				if type(upvalue) == "table" and upvalue.processRound then
+					return upvalue
 				end
 			end
 		end
 	end
-end
-
----@return Instance | nil
-function mod.getPiece(tile)
-	local rayOrigin
-	local boardTile = game:GetService("Workspace").Board[tile]
-
-	if boardTile.ClassName == "Model" then
-		if game:GetService("Workspace").Board[tile]:FindFirstChild("Meshes/tile_a") then
-			rayOrigin = game:GetService("Workspace").Board[tile]["Meshes/tile_a"].Position
-		else
-			rayOrigin = game:GetService("Workspace").Board[tile]["Tile"].Position
-		end
-	else
-		rayOrigin = game:GetService("Workspace").Board[tile].Position
-	end
-
-	local rayDirection = Vector3.new(0, 10, 0)
-
-	local raycastResult = workspace:Raycast(rayOrigin, rayDirection)
-
-	if raycastResult ~= nil then
-		return raycastResult.Instance.Parent
-	end
 
 	return nil
 end
 
-function mod.gameInProgress()
-	return #game:GetService("Workspace").Board:GetChildren() > 0
-end
+function ChessHelper.new()
+	local self = setmetatable({}, ChessHelper)
 
-function mod.new()
-	local self = setmetatable({}, mod)
-	self.client = self.getClient()
+	self.client = findClient()
 
 	return self
 end
 
----@return any[] | nil
-function mod:getBoard()
-	for _, v in pairs(debug.getupvalues(self.client.processRound)) do
-		if type(v) == "table" and v.tiles then
-			return v
+function ChessHelper:refreshClient()
+	self.client = findClient()
+	return self.client
+end
+
+function ChessHelper:getBoard()
+	if self.client and self.client.currentMatch then
+		return self.client.currentMatch
+	end
+
+	if not (self.client and self.client.processRound) then
+		return nil
+	end
+
+	for _, upvalue in pairs(debug.getupvalues(self.client.processRound)) do
+		if type(upvalue) == "table" and upvalue.tiles and upvalue.boardExists then
+			return upvalue
 		end
 	end
 
 	return nil
 end
 
----@return boolean
-function mod:isBotMatch()
-	local board = self:getBoard()
-
-	if not board or not board.players then
-		return false
-	end
-	if board.players[false] == lplayer and board.players[true] == lplayer then
-		return true
-	end
-
-	return false
+function ChessHelper:isGameInProgress()
+	local boardFolder = Workspace:FindFirstChild("Board")
+	return boardFolder ~= nil and #boardFolder:GetChildren() > 0
 end
 
----@return "w" | "b" | nil
-function mod:getLocalTeam()
+function ChessHelper:isBotMatch()
+	local board = self:getBoard()
+
+	return board ~= nil
+		and board.players ~= nil
+		and board.players[true] == LocalPlayer
+		and board.players[false] == LocalPlayer
+end
+
+function ChessHelper:getLocalTeam()
 	local board = self:getBoard()
 	if not board then
 		return nil
 	end
-	-- Bot match detection
+
 	if self:isBotMatch() then
 		return "w"
 	end
 
-	for i, v in pairs(board.players) do
-		if v == lplayer then
-			-- If the index is true, they are white
-			if i then
-				return "w"
-			else
-				return "b"
-			end
+	for team, player in pairs(board.players or {}) do
+		if player == LocalPlayer then
+			return team and "w" or "b"
 		end
 	end
 
 	return nil
 end
 
----@return boolean
-function mod:isPlayerTurn()
+function ChessHelper:isPlayerTurn()
 	local team = self:getLocalTeam()
-	local guiName = if team == "w" then "White" else "Black"
-	if lplayer.PlayerGui.GameStatus[guiName].Visible then
-		return true
+	if not team then
+		return false
 	end
-	return false
+
+	local gameStatus = LocalPlayer.PlayerGui:FindFirstChild("GameStatus")
+	if not gameStatus then
+		return false
+	end
+
+	local teamGui = gameStatus:FindFirstChild(team == "w" and "White" or "Black")
+	return teamGui ~= nil and teamGui.Visible
 end
 
----Check if we're able to run without desyncing
----@return boolean
-function mod:willCauseDesync()
+function ChessHelper:willCauseDesync()
 	local board = self:getBoard()
-
 	if not board then
 		return false
 	end
 
-	local state, _ = pcall(function()
-		if self:isBotMatch() then
-			return board.activeTeam == false
-		end
-	end)
-
-	if not state then
+	if self:isBotMatch() then
 		return false
 	end
 
-	for i, v in pairs(board.players) do
-		if v == lplayer then
-			-- If the index is true, they are white
-			return not (board.activeTeam == i)
+	for team, player in pairs(board.players or {}) do
+		if player == LocalPlayer then
+			return board.activeTeam ~= team
 		end
 	end
 
 	return true
 end
 
----Converts awful format of board table to a sensible one
----@return any[] | nil
-function mod:createBoard()
+function ChessHelper:getBoardPiece(position)
 	local board = self:getBoard()
 	if not board then
 		return nil
 	end
 
-	local newBoard = {}
-	for _, v in pairs(board.whitePieces) do
-		if v and v.position then
-			local x, y = v.position[1], v.position[2]
-			if not newBoard[x] then
-				newBoard[x] = {}
-			end
-			newBoard[x][y] = string.upper(self.pieces[v.object.Name])
-		end
-	end
-	for _, v in pairs(board.blackPieces) do
-		if v and v.position then
-			local x, y = v.position[1], v.position[2]
-			if not newBoard[x] then
-				newBoard[x] = {}
-			end
-			newBoard[x][y] = self.pieces[v.object.Name]
-		end
-	end
-
-	return newBoard
+	return getPieceAtPosition(board, position)
 end
 
----@return string | nil
-function mod:board2fen()
-	local board = self:createBoard()
-    if not board then return nil end
+function ChessHelper:getWorkspacePiece(tileName)
+	local boardFolder = Workspace:FindFirstChild("Board")
+	if not boardFolder then
+		return nil
+	end
 
-	local result = ""
-	local boardPieces = self:createBoard(board)
+	local tile = boardFolder:FindFirstChild(tileName)
+	if not tile then
+		return nil
+	end
+
+	local origin
+
+	if tile:IsA("Model") then
+		local meshTile = tile:FindFirstChild("Meshes/tile_a")
+		local tilePart = tile:FindFirstChild("Tile")
+		local part = meshTile or tilePart
+
+		if not part then
+			return nil
+		end
+
+		origin = part.Position
+	else
+		origin = tile.Position
+	end
+
+	local result = Workspace:Raycast(origin, Vector3.new(0, 10, 0))
+	return result and result.Instance.Parent or nil
+end
+
+function ChessHelper:createBoard()
+	local board = self:getBoard()
+	if not board then
+		return nil
+	end
+
+	local boardMap = {}
+
+	local function placePiece(piece, isWhite)
+		if not (piece and piece.position and piece.Name) then
+			return
+		end
+
+		local x, y = piece.position[1], piece.position[2]
+		local symbol = self.Pieces[piece.Name]
+
+		if not symbol then
+			return
+		end
+
+		boardMap[x] = boardMap[x] or {}
+		boardMap[x][y] = isWhite and string.upper(symbol) or symbol
+	end
+
+	for _, piece in pairs(board.whitePieces or {}) do
+		placePiece(piece, true)
+	end
+
+	for _, piece in pairs(board.blackPieces or {}) do
+		placePiece(piece, false)
+	end
+
+	return boardMap
+end
+
+function ChessHelper:board2fen()
+	local boardMap = self:createBoard()
+	if not boardMap then
+		return nil
+	end
+
+	local result = {}
+
 	for y = 8, 1, -1 do
 		local empty = 0
+		local row = {}
+
 		for x = 8, 1, -1 do
-			if not boardPieces[x] then
-				boardPieces[x] = {}
-			end
-			local piece = boardPieces[x][y]
+			local piece = boardMap[x] and boardMap[x][y]
+
 			if piece then
 				if empty > 0 then
-					result = result .. tostring(empty)
+					table.insert(row, tostring(empty))
 					empty = 0
 				end
-				result = result .. piece
+
+				table.insert(row, piece)
 			else
 				empty += 1
 			end
 		end
+
 		if empty > 0 then
-			result = result .. tostring(empty)
+			table.insert(row, tostring(empty))
 		end
-		if not (y == 1) then
-			result = result .. "/"
-		end
+
+		table.insert(result, table.concat(row))
 	end
-	result = result .. " " .. self:getLocalTeam(board)
-	return result
+
+	return table.concat(result, "/") .. " " .. (self:getLocalTeam() or "-")
 end
 
-return mod
+function ChessHelper:hasLegalMove(piece, targetPosition)
+	if not (piece and piece.getMoves) then
+		return false
+	end
+
+	for _, move in pairs(piece:getMoves()) do
+		if samePosition(move, targetPosition) then
+			return true
+		end
+	end
+
+	return false
+end
+
+function ChessHelper:autoMove(fromPosition, toPosition)
+	local client = self.client
+	local board = self:getBoard()
+
+	if not client then
+		return false, "Client not found"
+	end
+
+	if not board then
+		return false, "Board not found"
+	end
+
+	if self:isBotMatch() then
+		return false, "AutoMove disabled in bot matches"
+	end
+
+	if not client.clickOnTile then
+		return false, "clickOnTile not found"
+	end
+
+	if self:willCauseDesync() then
+		return false, "Not safe to move right now"
+	end
+
+	local piece = getPieceAtPosition(board, fromPosition)
+	if not piece then
+		return false, "No piece at source"
+	end
+
+	if piece.team ~= board.activeTeam then
+		return false, "Piece is not active team"
+	end
+
+	if not self:hasLegalMove(piece, toPosition) then
+		return false, "Illegal move"
+	end
+
+	client:clickOnTile(fromPosition[1], fromPosition[2])
+	task.wait(0.15)
+	client:clickOnTile(toPosition[1], toPosition[2])
+
+	return true, "Move attempted"
+end
+
+return ChessHelper
