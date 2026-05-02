@@ -15,32 +15,16 @@ you'll most likely be able to see performance and activity better
 if you have any suggestions!
 -->
 ## How to Run
+1. **Download the Latest Release**
+    - Download the latest release of the server from [_here_](https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/roblox-chess-script.exe).
 
-1. **Download Stockfish**
-
-    - Get [_Stockfish_](https://stockfishchess.org/download/). The **Faster** version is recommended, but if the server doesn’t start, try the **More compatible** version.
-
-2. **Download the Latest Release**
-
-    - Download the latest release of the script from [_here_](https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/roblox-chess-script-windows-x64.exe).
-    - **IMPORTANT**: If the file does not exist when going to the link, wait around 5 minutes and try again. This is because an update was recently made and the file is still being uploaded.
-
-3. **Run the Application**
-
+2. **Run the Application**
     - Launch the application and follow the instructions until it indicates that the server is running.
 
-4. **Execute the Script in Roblox**
-
-    - **IMPORTANT**: Same as step 2, if you get a 404 error in Roblox console (seen by pressing F9), wait around 5 minutes and try again. Also update the server because it may be updated too.
-    - Use the following script:
-
+3. **Execute the Script in Roblox**
     ```lua
     loadstring(game:HttpGet("https://github.com/keplerHaloxx/roblox-chess-script/releases/latest/download/main.lua"))()
     ```
-
-## Known Problems
-
-It seems that Solara and Xeno doesn't load Rayfield UI that well. If anyone would like to fork and have the app be with a different UI then please do so as I'm too lazy.
 
 <!-- ## Executor Compatibility
 
