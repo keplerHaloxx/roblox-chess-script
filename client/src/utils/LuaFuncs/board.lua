@@ -208,6 +208,10 @@ function ChessHelper:createBoard()
 			return
 		end
 
+		if piece.Name == "Pawn" and (y == 1 or y == 8) then
+			symbol = self.Pieces.Queen
+		end
+
 		boardMap[x] = boardMap[x] or {}
 		boardMap[x][y] = isWhite and string.upper(symbol) or symbol
 	end
@@ -224,6 +228,11 @@ function ChessHelper:createBoard()
 end
 
 function ChessHelper:board2fen()
+	local board = self:getBoard()
+	if not board then
+		return nil
+	end
+
 	local boardMap = self:createBoard()
 	if not boardMap then
 		return nil
@@ -257,7 +266,10 @@ function ChessHelper:board2fen()
 		table.insert(result, table.concat(row))
 	end
 
-	return table.concat(result, "/") .. " " .. (self:getLocalTeam() or "-")
+	local activeColor = board.activeTeam == nil and self:getLocalTeam()
+		or (board.activeTeam and "w" or "b")
+
+	return table.concat(result, "/") .. " " .. activeColor .. " - - 0 1"
 end
 
 function ChessHelper:hasLegalMove(piece, targetPosition)
