@@ -9,3 +9,5 @@ sourcemap.json
 
 # Local pinned build tools
 /.tools/
+
+/dist

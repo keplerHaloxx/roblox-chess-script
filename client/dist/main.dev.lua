@@ -1828,8 +1828,9 @@ if self.destroyed then
 	if not playerTurn then
 		self.lastAnalyzedFen = nil
 	end
-	local status = if not self.options.autoCalculate
-		then "Inactive"
+	local status = if playing and self.board:isBotMatch()
+		then "⚠ Bot match detected — automatic moves unavailable. Suggestions still work."
+		elseif not self.options.autoCalculate then "Inactive"
 		elseif not playing then "Waiting for a match"
 		elseif not playerTurn then "Waiting for your turn"
 		elseif self.busy then self.requestPhase or "Calculating or moving…"
@@ -2664,16 +2665,17 @@ if not controller:run(autoExecute, false) then
 	})
 	engineTab:CreateButton({ name = "Close chess assistant", callback = session.cleanup })
 
-	autoTab:CreateText({
-		name = "Choose how to play",
-		text = "Auto calculate keeps suggestions up to date. Enable Auto execute move as well to play them automatically.",
-	})
 	autoTab:CreateSection({ name = "Automation" })
+	autoTab:CreateText({
+		name = "⚠ Auto Play limitations",
+		text = "Bot matches: automatic moves are unavailable.\n\nCastling & en passant: play these moves manually.\n\nPromotion: promote the pawn manually.",
+	})
+
 	local autoCalculateToggle = autoTab:CreateToggle({
 		name = "Auto calculate",
 		flag = "AutoCalculate",
 		value = false,
-		description = "Suggest a move whenever your turn begins.",
+		description = "Keep suggestions up to date whenever your turn begins. Does not move pieces on its own.",
 		callback = function(value)
 			options.autoCalculate = value
 			controller:cancel()
@@ -2706,37 +2708,20 @@ if not controller:run(autoExecute, false) then
 		name = "Use suggested pause",
 		flag = "UseCalculatedDelay",
 		value = false,
-		description = "Use the server's timing when available; otherwise use the pause above.",
+		description = "Use the server's timing when available; otherwise use the pause above. (VERY experimental, don't recommend)",
 		callback = function(value)
 			options.useCalculatedDelay = value
 		end,
 	})
 
-	autoTab:CreateSection({ name = "Special moves" })
-	autoTab:CreateToggle({
-		name = "Experimental promotion",
-		description = "Try automatic pawn promotion. Leave off for manual promotion.",
-		flag = "ExperimentalPromotion",
-		value = false,
-		callback = function(value)
-			options.experimentalPromotion = value
-			controller:cancel()
-		end,
-	})
-
-	autoTab:CreateText({
-		name = "Before you start",
-		text = "Automatic moves are unavailable in bot matches. With experimental promotion off, the suggested promotion stays visible for manual play.",
-	})
-
 	themeTab:CreateSection({ name = "Look & feel" })
 	themeTab:CreateDropdown({
 		name = "Theme",
-		options = { "default", "cobalt", "ember", "amethyst", "frost", "rose" },
+		options = { "Default", "Cobalt", "Ember", "Amethyst", "Frost", "Rose" },
 		value = "cobalt",
 		flag = "RayfieldTheme",
 		callback = function(value)
-			window:ChangeTheme(value )
+			window:ChangeTheme((string.lower(value) ))
 		end,
 	})
 

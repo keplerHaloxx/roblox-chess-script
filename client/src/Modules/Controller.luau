@@ -268,8 +268,9 @@ function Controller.tick(self: Controller): ()
 	if not playerTurn then
 		self.lastAnalyzedFen = nil
 	end
-	local status = if not self.options.autoCalculate
-		then "Inactive"
+	local status = if playing and self.board:isBotMatch()
+		then "⚠ Bot match detected — automatic moves unavailable. Suggestions still work."
+		elseif not self.options.autoCalculate then "Inactive"
 		elseif not playing then "Waiting for a match"
 		elseif not playerTurn then "Waiting for your turn"
 		elseif self.busy then self.requestPhase or "Calculating or moving…"

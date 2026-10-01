@@ -155,16 +155,19 @@ function Controls.build(context: Context): ()
 	})
 	engineTab:CreateButton({ name = "Close chess assistant", callback = session.cleanup })
 
-	autoTab:CreateText({
-		name = "Choose how to play",
-		text = "Auto calculate keeps suggestions up to date. Enable Auto execute move as well to play them automatically.",
-	})
 	autoTab:CreateSection({ name = "Automation" })
+	autoTab:CreateText({
+		name = "⚠ Auto Play limitations",
+		text = "Bot matches: automatic moves are unavailable.\nCastling & en passant: play these moves manually.\nPromotion: promote the pawn manually.",
+	})
+
+	autoTab:CreateDivider()
+
 	local autoCalculateToggle = autoTab:CreateToggle({
 		name = "Auto calculate",
 		flag = "AutoCalculate",
 		value = false,
-		description = "Suggest a move whenever your turn begins.",
+		description = "Keep suggestions up to date whenever your turn begins. Does not move pieces on its own.",
 		callback = function(value)
 			options.autoCalculate = value
 			controller:cancel()
@@ -197,37 +200,20 @@ function Controls.build(context: Context): ()
 		name = "Use suggested pause",
 		flag = "UseCalculatedDelay",
 		value = false,
-		description = "Use the server's timing when available; otherwise use the pause above.",
+		description = "Use the server's timing when available; otherwise use the pause above. (VERY experimental, don't recommend)",
 		callback = function(value)
 			options.useCalculatedDelay = value
 		end,
 	})
 
-	autoTab:CreateSection({ name = "Special moves" })
-	autoTab:CreateToggle({
-		name = "Experimental promotion",
-		description = "Try automatic pawn promotion. Leave off for manual promotion.",
-		flag = "ExperimentalPromotion",
-		value = false,
-		callback = function(value: boolean)
-			options.experimentalPromotion = value
-			controller:cancel()
-		end,
-	})
-
-	autoTab:CreateText({
-		name = "Before you start",
-		text = "Automatic moves are unavailable in bot matches. With experimental promotion off, the suggested promotion stays visible for manual play.",
-	})
-
 	themeTab:CreateSection({ name = "Look & feel" })
 	themeTab:CreateDropdown({
 		name = "Theme",
-		options = { "default", "cobalt", "ember", "amethyst", "frost", "rose" },
+		options = { "Default", "Cobalt", "Ember", "Amethyst", "Frost", "Rose" },
 		value = "cobalt",
 		flag = "RayfieldTheme",
 		callback = function(value: string)
-			window:ChangeTheme(value :: RayfieldTypes.ThemeName)
+			window:ChangeTheme(string.lower(value) :: RayfieldTypes.ThemeName)
 		end,
 	})
 
