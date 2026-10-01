@@ -1,10 +1,11 @@
-/node_modules
-/out
-/include
-/dist
-*.tsbuildinfo
-.vscode
-pnpm-lock.yaml
-bun.lockb
-package-lock.json
-.env
+# Project place file
+/client.rbxlx
+
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+
+sourcemap.json
+
+# Local pinned build tools
+/.tools/

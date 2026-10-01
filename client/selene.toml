@@ -1,3 +1,6 @@
-std = "roblox"
-[lints]
-global_usage = "allow"
+std = "executor+roblox"
+
+[rules]
+unused_variable = "deny"
+undefined_variable = "deny"
+shadowing = "warn"

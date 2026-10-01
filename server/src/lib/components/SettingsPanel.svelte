@@ -23,10 +23,13 @@
     restartEngine as restartEngineCommand,
     saveSettings as saveSettingsCommand,
     testConnection as testConnectionCommand,
+    setTimingPreset,
   } from '$lib/tauriApi';
   import type { AppConfig, BotTimingPreset } from '$lib/types/app';
 
   type ToastType = 'success' | 'error' | 'info';
+
+  export let engineBusy = false;
 
   const dispatch = createEventDispatcher<{
     notify: {
@@ -39,6 +42,9 @@
   let saving = false;
   let advancedOpen = false;
   let connectionTesting = false;
+  let actionBusy: string | null = null;
+  let loadError: string | null = null;
+  $: busy = saving || actionBusy !== null || connectionTesting || engineBusy;
 
   let settings: AppConfig = {
     server: {
@@ -72,8 +78,8 @@
     {
       id: 'quick',
       name: 'Quick',
-      description: 'Moves faster with less extra checking.',
-      badges: ['Fastest', 'Less accurate'],
+      description: 'Shorter pauses between moves.',
+      badges: ['Shortest pauses'],
     },
     {
       id: 'balanced',
@@ -84,13 +90,13 @@
     {
       id: 'careful',
       name: 'Careful',
-      description: 'Takes a little more time on harder positions.',
+      description: 'Longer pauses on harder positions.',
     },
     {
       id: 'very_careful',
       name: 'Very Careful',
       description: 'Adds more time when the move is complicated.',
-      badges: ['Slowest', 'Best results'],
+      badges: ['Longest pauses'],
     },
   ];
 
@@ -115,12 +121,16 @@
 
     if (result) {
       settings = result;
+      loadError = null;
+    } else {
+      loadError = 'Could not load settings. Retry before making changes.';
     }
 
     loading = false;
   }
 
   async function saveSettings(message = 'Settings saved.', restartEngine = false) {
+    if (busy) return;
     saving = true;
 
     const result = await safeCall('save_settings', () =>
@@ -131,41 +141,43 @@
 
     if (result?.ok) {
       notify(message, 'success');
+    } else {
+      if (result?.message) notify(result.message, 'error');
       await loadSettings();
-    } else if (result?.message) {
-      notify(result.message, 'error');
     }
   }
 
   async function setPreset(preset: BotTimingPreset) {
-    settings = {
-      ...settings,
-      analysis: {
-        ...settings.analysis,
-        timing_preset: preset,
-      },
-    };
-
-    await saveSettings('Bot timing updated.');
+    if (busy) return;
+    actionBusy = 'Updating timing…';
+    const result = await safeCall('set_timing_preset', () => setTimingPreset(preset));
+    if (result) notify(result.message, result.ok ? 'success' : 'error');
+    await loadSettings();
+    actionBusy = null;
   }
 
   async function restartEngine() {
+    if (busy) return;
+    actionBusy = 'Restarting engine…';
     const result = await safeCall('restart_engine', () => restartEngineCommand());
 
-    if (result !== null) {
-      notify('Engine restarted.', 'success');
-    }
+    if (result) notify(result.message, result.ok ? 'success' : 'error');
+    actionBusy = null;
   }
 
   async function redownloadEngine() {
+    if (busy) return;
+    actionBusy = 'Downloading and installing Stockfish…';
     const result = await safeCall('redownload_stockfish', () => redownloadStockfish());
 
-    if (result !== null) {
-      notify('Engine redownload started.', 'info');
-    }
+    if (result) notify(result.message, result.ok ? 'success' : 'error');
+    await loadSettings();
+    actionBusy = null;
   }
 
   async function resetRecommended() {
+    if (busy) return;
+    actionBusy = 'Restoring recommended settings…';
     const result = await safeCall('reset_recommended_settings', () => resetRecommendedSettings());
 
     if (result?.ok) {
@@ -175,9 +187,12 @@
       notify(result.message, 'error');
       await loadSettings();
     }
+    actionBusy = null;
   }
 
   async function chooseSyzygyFolders() {
+    if (busy) return;
+    actionBusy = 'Choosing tablebase folders…';
     const result = await safeCall('choose_syzygy_folders', () => chooseSyzygyFoldersCommand());
 
     if (Array.isArray(result)) {
@@ -189,11 +204,14 @@
         },
       };
 
-      await saveSettings('Tablebase folders updated.');
+      notify('Tablebase folders updated.', 'success');
     }
+    actionBusy = null;
   }
 
   async function clearSyzygyFolders() {
+    if (busy) return;
+    actionBusy = 'Clearing tablebase folders…';
     const result = await safeCall('clear_syzygy_folders', () => clearSyzygyFoldersCommand());
 
     if (Array.isArray(result)) {
@@ -206,18 +224,18 @@
       };
       notify('Tablebase folders cleared.', 'success');
     }
+    actionBusy = null;
   }
 
   async function testConnection() {
+    if (busy) return;
     connectionTesting = true;
 
     const result = await safeCall('test_connection', () => testConnectionCommand());
 
     connectionTesting = false;
 
-    if (result !== null) {
-      notify('Local connection is working.', 'success');
-    }
+    if (result) notify(result.message, result.ok ? 'success' : 'error');
   }
 
   function enginePath() {
@@ -231,6 +249,16 @@
   <div class="mb-4 shrink-0">
     <p class="text-sm font-medium text-slate-400">Control how the app behaves</p>
     <h2 class="text-2xl font-semibold tracking-tight text-slate-50">Settings</h2>
+    <p class="mt-1 text-xs text-slate-400" role="status" aria-live="polite">
+      {saving
+        ? 'Saving changes…'
+        : (actionBusy ??
+          (connectionTesting
+            ? 'Checking the local connection…'
+            : engineBusy
+              ? 'Engine setup is in progress…'
+              : 'Changes save automatically.'))}
+    </p>
   </div>
 
   {#if loading}
@@ -242,8 +270,15 @@
         Loading settings...
       </div>
     </div>
+  {:else if loadError}
+    <div class="rounded-2xl border border-red-500/30 p-5 text-sm text-red-200">
+      <p>{loadError}</p>
+      <button type="button" class="mt-3 rounded-xl bg-slate-800 px-4 py-2" on:click={loadSettings}
+        >Retry</button
+      >
+    </div>
   {:else}
-    <div class="min-h-0 flex-1 overflow-y-auto pr-2">
+    <fieldset disabled={busy} class="min-h-0 flex-1 overflow-y-auto pr-2">
       <div class="space-y-4 pb-5">
         <section class="rounded-3xl border border-slate-800 bg-slate-900/60 p-5">
           <div class="flex items-start justify-between gap-4">
@@ -254,7 +289,7 @@
               </div>
 
               <p class="mt-1 text-sm leading-6 text-slate-400">
-                Choose how quickly the Roblox bot should respond. Balanced is recommended.
+                Choose the suggested pause before each move. Balanced is recommended.
               </p>
             </div>
 
@@ -277,6 +312,7 @@
                     ? 'border-emerald-400/50 bg-emerald-400/10'
                     : 'border-slate-800 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-900'
                 }`}
+                aria-pressed={settings.analysis.timing_preset === preset.id}
                 on:click={() => setPreset(preset.id)}
               >
                 <div class="flex items-start justify-between gap-2">
@@ -318,41 +354,58 @@
             <div>
               <div class="flex items-center gap-2">
                 <ShieldCheck size={18} class="text-sky-300" />
-                <h3 class="text-base font-semibold text-slate-50">App actions</h3>
+                <h3 class="text-base font-semibold text-slate-50">Troubleshooting</h3>
               </div>
 
               <p class="mt-1 text-sm leading-6 text-slate-400">
-                Use these when the app needs a refresh or setup should be restored.
+                If moves stop working, try restarting the engine first.
               </p>
             </div>
           </div>
 
-          <div class="mt-4 grid grid-cols-3 gap-3">
+          <div class="mt-4 space-y-2">
             <button
               type="button"
-              class="flex items-center justify-center gap-2 rounded-2xl border border-slate-800 bg-slate-950 px-3 py-3 text-sm font-medium text-slate-200 hover:bg-slate-900"
+              class="flex w-full items-start gap-3 rounded-2xl border border-slate-800 bg-slate-950 p-4 text-left hover:bg-slate-900"
               on:click={restartEngine}
+              disabled={!settings.engine.stockfish_path}
             >
-              <RefreshCcw size={15} />
-              Restart
+              <RefreshCcw size={17} class="mt-0.5 shrink-0 text-slate-400" />
+              <span
+                ><span class="block text-sm font-medium text-slate-100">Restart engine</span><span
+                  class="mt-1 block text-xs leading-5 text-slate-400"
+                  >Restarts Stockfish with your saved settings. Use if it stops responding.</span
+                ></span
+              >
             </button>
-
             <button
               type="button"
-              class="flex items-center justify-center gap-2 rounded-2xl border border-slate-800 bg-slate-950 px-3 py-3 text-sm font-medium text-slate-200 hover:bg-slate-900"
+              class="flex w-full items-start gap-3 rounded-2xl border border-slate-800 bg-slate-950 p-4 text-left hover:bg-slate-900"
               on:click={redownloadEngine}
             >
-              <Download size={15} />
-              Redownload
+              <Download size={17} class="mt-0.5 shrink-0 text-slate-400" />
+              <span
+                ><span class="block text-sm font-medium text-slate-100">Reinstall Stockfish</span
+                ><span class="mt-1 block text-xs leading-5 text-slate-400"
+                  >Downloads a fresh copy and starts it. Use for missing or damaged engine files.
+                  Requires internet.</span
+                ></span
+              >
             </button>
-
             <button
               type="button"
-              class="flex items-center justify-center gap-2 rounded-2xl border border-slate-800 bg-slate-950 px-3 py-3 text-sm font-medium text-slate-200 hover:bg-slate-900"
+              class="flex w-full items-start gap-3 rounded-2xl border border-slate-800 bg-slate-950 p-4 text-left hover:bg-slate-900"
               on:click={resetRecommended}
             >
-              <RotateCcw size={15} />
-              Reset
+              <RotateCcw size={17} class="mt-0.5 shrink-0 text-slate-400" />
+              <span
+                ><span class="block text-sm font-medium text-slate-100"
+                  >Restore recommended settings</span
+                ><span class="mt-1 block text-xs leading-5 text-slate-400"
+                  >Resets performance and timing, then restarts the engine. Keeps your engine file,
+                  tablebase folders, and connection settings.</span
+                ></span
+              >
             </button>
           </div>
         </section>
@@ -361,6 +414,7 @@
           <button
             type="button"
             class="flex w-full items-center justify-between gap-4 text-left"
+            aria-expanded={advancedOpen}
             on:click={() => (advancedOpen = !advancedOpen)}
           >
             <div>
@@ -370,7 +424,8 @@
               </div>
 
               <p class="mt-1 text-sm leading-6 text-slate-400">
-                Optional controls for users who want more control.
+                Performance, endgame tablebases, and connection details. Defaults work for most
+                users.
               </p>
             </div>
 
@@ -390,26 +445,33 @@
 
                 <div class="grid grid-cols-3 gap-3">
                   <label class="space-y-1">
-                    <span class="text-xs font-medium text-slate-400">Hash memory</span>
+                    <span class="text-xs font-medium text-slate-400">Hash memory (MB)</span>
                     <input
                       class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
                       type="number"
-                      min="16"
-                      step="16"
+                      required
+                      min="1"
+                      max="65536"
+                      step="1"
                       bind:value={settings.engine!.hash_mb}
-                      on:change={() => saveSettings('Hash memory updated.')}
+                      on:change={(event) =>
+                        event.currentTarget.reportValidity() &&
+                        saveSettings('Hash memory updated.')}
                     />
                   </label>
 
                   <label class="space-y-1">
-                    <span class="text-xs font-medium text-slate-400">Threads</span>
+                    <span class="text-xs font-medium text-slate-400">CPU threads</span>
                     <input
                       class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
                       type="number"
+                      required
                       min="1"
                       step="1"
                       bind:value={settings.engine!.threads}
-                      on:change={() => saveSettings('Thread count updated.')}
+                      on:change={(event) =>
+                        event.currentTarget.reportValidity() &&
+                        saveSettings('Thread count updated.')}
                     />
                   </label>
 
@@ -418,11 +480,14 @@
                     <input
                       class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
                       type="number"
+                      required
                       min="1"
                       max="8"
                       step="1"
                       bind:value={settings.engine!.multipv}
-                      on:change={() => saveSettings('Candidate move count updated.')}
+                      on:change={(event) =>
+                        event.currentTarget.reportValidity() &&
+                        saveSettings('Candidate move count updated.')}
                     />
                   </label>
                 </div>
@@ -432,7 +497,9 @@
                 >
                   <div>
                     <p class="text-sm font-medium text-slate-100">Auto restart engine</p>
-                    <p class="text-xs text-slate-500">Restart automatically if the engine stops.</p>
+                    <p class="text-xs text-slate-500">
+                      Restarts a failed engine when the next move is requested.
+                    </p>
                   </div>
 
                   <input
@@ -467,6 +534,7 @@
                   <button
                     type="button"
                     class="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-900"
+                    disabled={settings.engine.syzygy_paths.length === 0}
                     on:click={clearSyzygyFolders}
                   >
                     Clear
@@ -544,6 +612,6 @@
           {/if}
         </section>
       </div>
-    </div>
+    </fieldset>
   {/if}
 </div>

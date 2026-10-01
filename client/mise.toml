@@ -1,3 +1,17 @@
 [tools]
 "github:rojo-rbx/rojo" = "7.6.1"
+"github:seaofvoices/darklua" = "0.18.0"
 "github:lune-org/lune" = "0.10.4"
+"github:JohnnyMorganz/luau-lsp" = "1.70.1"
+
+[tasks.bundle-dev]
+run = "darklua process src/main.client.luau dist/main.dev.lua --config .darklua.dev.json"
+
+[tasks.bundle-prod]
+run = "darklua process src/main.client.luau dist/main.lua --config .darklua.prod.json"
+
+[tasks.test]
+run = "lune run tests/run.luau"
+
+[tasks.typecheck]
+run = "pwsh -NoProfile -File scripts/CheckTypes.ps1"

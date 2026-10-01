@@ -513,7 +513,7 @@ fn select_asset(assets: &[GithubAsset]) -> Option<GithubAsset> {
         .map(|asset| (asset_score(&asset.name), asset.clone()))
         .collect::<Vec<_>>();
 
-    scored.sort_by(|a, b| b.0.cmp(&a.0));
+    scored.sort_by_key(|item| std::cmp::Reverse(item.0));
     scored.into_iter().map(|(_, asset)| asset).next()
 }
 

@@ -44,6 +44,7 @@ If you’d like your executor added to the compatibility list, please open an [i
 
 ## Notes
 
+- The native Luau client and Rayfield Gen2 build instructions are in [client](client/README.md). Local builds do not update the hosted release script above.
 - The server is currently tested only on **Windows**.
 - If you encounter issues or would like to suggest a feature, please open an [issue](https://github.com/keplerHaloxx/roblox-chess-script/issues/new/choose). I’ll try to address them as soon as possible.
 - If you find this project useful, please consider starring the repository. ✨

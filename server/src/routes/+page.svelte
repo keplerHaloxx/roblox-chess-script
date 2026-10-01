@@ -29,7 +29,7 @@
   } from '$lib/tauriApi';
   import type { DetectStockfishResponse, HistoryItem, UiStatusResponse } from '$lib/types/app';
 
-  type Tab = 'status' | 'output' | 'settings';
+  type Tab = 'status' | 'output' | 'settings' | 'engine';
 
   type Toast = {
     id: number;
@@ -44,8 +44,11 @@
 
   let loadingStatus = true;
   let loadingHistory = true;
+  let historyError: string | null = null;
   let setupBusy: 'detect' | 'download' | 'choose' | null = null;
-  let forceSetupWizard = false;
+  let initialSetupChecked = false;
+  let refreshing = false;
+  let statusError: string | null = null;
   let setupError: string | null = null;
   let restarting = false;
 
@@ -63,9 +66,12 @@
       type,
     };
 
-    toastTimer = window.setTimeout(() => {
-      toast = null;
-    }, 2400);
+    toastTimer = window.setTimeout(
+      () => {
+        toast = null;
+      },
+      type === 'error' ? 8000 : 4000,
+    );
   }
 
   async function safeCall<T>(label: string, fn: () => Promise<T>): Promise<T | null> {
@@ -79,27 +85,44 @@
   }
 
   async function refreshStatus() {
-    const result = await safeCall('get_ui_status', () => getUiStatus());
+    let result: UiStatusResponse | null = null;
+    try {
+      result = await getUiStatus();
+      statusError = null;
+    } catch (error) {
+      statusError = error instanceof Error ? error.message : String(error);
+    }
 
     if (result) {
       status = result;
+      if (!initialSetupChecked) {
+        initialSetupChecked = true;
+        if (result.setup_required && activeTab === 'status') activeTab = 'engine';
+      }
     }
 
     loadingStatus = false;
   }
 
   async function refreshHistory() {
-    const result = await safeCall('get_history', () => getHistory());
-
-    if (Array.isArray(result)) {
-      history = result;
+    try {
+      history = await getHistory();
+      historyError = null;
+    } catch (error) {
+      historyError = error instanceof Error ? error.message : String(error);
     }
 
     loadingHistory = false;
   }
 
   async function refreshAll() {
-    await Promise.all([refreshStatus(), refreshHistory()]);
+    if (refreshing) return;
+    refreshing = true;
+    try {
+      await Promise.all([refreshStatus(), refreshHistory()]);
+    } finally {
+      refreshing = false;
+    }
   }
 
   async function restartEngine() {
@@ -109,14 +132,13 @@
 
     restarting = false;
 
-    if (result?.ok) {
-      showToast(result.message || 'Engine restarted.', 'success');
-    }
+    if (result) showToast(result.message, result.ok ? 'success' : 'error');
 
     await refreshAll();
   }
 
   async function setupEngine(action: 'detect' | 'download' | 'choose') {
+    if (setupBusy) return;
     setupBusy = action;
     setupError = null;
 
@@ -136,16 +158,18 @@
 
     setupBusy = null;
 
+    if (action === 'choose' && result?.message === 'No file selected.') {
+      return;
+    }
+
     if (result?.ok) {
       setupError = null;
-      forceSetupWizard = false;
+      if (activeTab === 'engine') activeTab = 'status';
       showToast(result.message || 'Chess engine is ready.', 'success');
     } else {
       setupError =
         result?.message ||
         'No compatible chess engine was found. You can download it automatically or choose a file manually.';
-
-      forceSetupWizard = true;
 
       showToast(setupError, 'error');
     }
@@ -154,30 +178,28 @@
   }
 
   function shouldShowSetupWizard() {
-    return forceSetupWizard || Boolean(status?.setup_required);
+    return activeTab === 'engine';
   }
 
   function openSetupWizard() {
-    activeTab = 'status';
-    forceSetupWizard = true;
+    activeTab = 'engine';
     setupError = null;
   }
 
   function closeSetupWizard() {
-    if (!status?.setup_required) {
-      forceSetupWizard = false;
-      setupError = null;
-    }
+    activeTab = 'status';
+    setupError = null;
   }
 
   function statusLabel() {
     if (loadingStatus) return 'Starting';
+    if (statusError) return 'Connection unavailable';
     return status?.status_label ?? 'Starting';
   }
 
   function statusDescription() {
     if (loadingStatus) return 'Checking the local service and chess engine.';
-    return status?.helper_text ?? 'The app is getting ready.';
+    return statusError ?? status?.helper_text ?? 'The app is getting ready.';
   }
 
   function latestMove() {
@@ -228,7 +250,9 @@
 </svelte:head>
 
 <div class="flex h-full min-h-0 overflow-hidden bg-slate-950">
-  <aside class="flex w-56 shrink-0 flex-col border-r border-slate-800 bg-slate-950 px-4 py-5">
+  <aside
+    class="flex w-44 sm:w-56 shrink-0 flex-col border-r border-slate-800 bg-slate-950 px-4 py-5"
+  >
     <div class="mb-6">
       <p class="text-[11px] font-medium uppercase tracking-[0.28em] text-slate-500 ml-6">
         Control Panel
@@ -238,12 +262,13 @@
             </p> -->
     </div>
 
-    <nav class="space-y-2">
+    <nav aria-label="Main navigation" class="space-y-2">
       <button
         type="button"
         class={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${tabClass(
           'status',
         )}`}
+        aria-current={activeTab === 'status' ? 'page' : undefined}
         on:click={() => (activeTab = 'status')}
       >
         <Signal size={17} />
@@ -255,10 +280,11 @@
         class={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${tabClass(
           'output',
         )}`}
+        aria-current={activeTab === 'output' ? 'page' : undefined}
         on:click={() => (activeTab = 'output')}
       >
         <FileText size={17} />
-        Output
+        Activity
       </button>
 
       <button
@@ -266,6 +292,7 @@
         class={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${tabClass(
           'settings',
         )}`}
+        aria-current={activeTab === 'settings' ? 'page' : undefined}
         on:click={() => (activeTab = 'settings')}
       >
         <Settings size={17} />
@@ -274,11 +301,12 @@
 
       <button
         type="button"
-        class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-400 transition hover:bg-slate-900 hover:text-slate-100"
+        class={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${tabClass('engine')}`}
+        aria-current={activeTab === 'engine' ? 'page' : undefined}
         on:click={openSetupWizard}
       >
         <FileUp size={17} />
-        Change Stockfish File
+        Engine setup
       </button>
     </nav>
 
@@ -303,21 +331,30 @@
     </div>
   </aside>
 
-  <section class="relative min-w-0 flex-1 overflow-hidden p-5">
+  <section class="relative min-w-0 flex-1 overflow-y-auto p-3 sm:p-5">
     {#if shouldShowSetupWizard()}
       <div
-        class="flex h-full min-h-0 flex-col justify-between rounded-3xl border border-slate-800 bg-slate-900/60 p-7"
+        class="flex min-h-full flex-col justify-between gap-6 rounded-3xl border border-slate-800 bg-slate-900/60 p-7"
       >
         <div>
           <div
             class="inline-flex rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-medium text-amber-200"
           >
-            Setup needed
+            {status?.setup_required ? 'Setup needed' : 'Engine setup'}
           </div>
 
           <h1 class="mt-5 text-3xl font-semibold tracking-tight text-slate-50">
-            Install the chess engine
+            {status?.setup_required ? 'Install the chess engine' : 'Change your chess engine'}
           </h1>
+
+          <p class="mt-3 text-sm leading-6 text-slate-400">
+            Choose an engine below. You can switch to any menu while setup is in progress.
+          </p>
+          {#if status?.engine.stockfish_path}
+            <p class="mt-3 break-all text-xs text-slate-400">
+              Current file: {status.engine.stockfish_path}
+            </p>
+          {/if}
 
           {#if setupError}
             <div
@@ -327,7 +364,18 @@
             </div>
           {/if}
 
-          <div class="mt-6 grid grid-cols-2 gap-4">
+          {#if setupBusy}
+            <p role="status" class="mt-4 flex items-center gap-2 text-sm text-emerald-200">
+              <Loader2 size={16} class="animate-spin" />
+              {setupBusy === 'download'
+                ? 'Downloading and starting Stockfish…'
+                : setupBusy === 'detect'
+                  ? 'Looking for Stockfish…'
+                  : 'Waiting for your file selection and checking the engine…'}
+            </p>
+          {/if}
+
+          <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
               type="button"
               class="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-5 text-left transition hover:bg-emerald-400/15 disabled:opacity-60"
@@ -346,7 +394,8 @@
 
               <p class="font-semibold text-slate-50">Download Automatically</p>
               <p class="mt-1 text-xs leading-5 text-slate-400">
-                Recommended. Installs the latest compatible engine and applies safe defaults.
+                Recommended for first-time setup. Downloads and starts a compatible Stockfish
+                engine.
               </p>
             </button>
 
@@ -368,7 +417,7 @@
 
               <p class="font-semibold text-slate-50">Choose Existing File</p>
               <p class="mt-1 text-xs leading-5 text-slate-400">
-                Use this only if you already downloaded a compatible chess engine.
+                Select the Stockfish executable you already downloaded.
               </p>
             </button>
           </div>
@@ -404,22 +453,34 @@
 
         <div class="flex items-center justify-between gap-3">
           <p class="text-xs text-slate-500">
-            Roblox will connect automatically once setup is complete.
+            Once ready, keep this app open and run the Roblox script.
           </p>
 
-          {#if forceSetupWizard && !status?.setup_required}
+          {#if activeTab === 'engine'}
             <button
               type="button"
               class="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-900"
               on:click={closeSetupWizard}
             >
-              Back to main menu
+              Back to status
             </button>
           {/if}
         </div>
       </div>
     {:else if activeTab === 'status'}
-      <div class="flex h-full min-h-0 flex-col gap-4">
+      <div class="flex min-h-full flex-col gap-4">
+        {#if status?.setup_required}
+          <div
+            class="flex items-center justify-between gap-3 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100"
+          >
+            <span>Stockfish needs to be configured before moves can be calculated.</span>
+            <button
+              type="button"
+              class="shrink-0 rounded-xl bg-slate-800 px-3 py-2"
+              on:click={openSetupWizard}>Set up engine</button
+            >
+          </div>
+        {/if}
         <div
           class="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-2xl shadow-black/20"
         >
@@ -466,7 +527,7 @@
             <button
               type="button"
               class="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-900 disabled:opacity-60"
-              disabled={restarting}
+              disabled={restarting || setupBusy !== null || !status?.engine.stockfish_path}
               on:click={restartEngine}
             >
               {#if restarting}
@@ -477,13 +538,22 @@
               {:else}
                 <span class="inline-flex items-center gap-2">
                   <RefreshCcw size={15} />
-                  Restart
+                  Restart engine
                 </span>
               {/if}
             </button>
           </div>
         </div>
 
+        {#if status?.ready_for_roblox && !status.last_activity}
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
+            <p class="text-sm font-medium text-slate-100">Ready for your first move</p>
+            <p class="mt-1 text-sm leading-6 text-slate-400">
+              Keep this app open, join a game in Roblox, and run the chess script. Move requests
+              will appear in Activity.
+            </p>
+          </div>
+        {/if}
         <div class="grid grid-cols-2 gap-4">
           <div class="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
             <div class="flex items-center gap-2 text-slate-400">
@@ -530,7 +600,7 @@
       <div class="flex h-full min-h-0 flex-col">
         <div class="mb-4 shrink-0">
           <p class="text-sm font-medium text-slate-400">Recent activity</p>
-          <h2 class="text-2xl font-semibold tracking-tight text-slate-50">Output</h2>
+          <h2 class="text-2xl font-semibold tracking-tight text-slate-50">Activity</h2>
         </div>
 
         <div
@@ -539,20 +609,26 @@
           {#if loadingHistory}
             <div class="flex h-full items-center justify-center text-sm text-slate-500">
               <Loader2 size={17} class="mr-2 animate-spin" />
-              Loading output...
+              Loading activity…
             </div>
+          {:else if historyError}
+            <p class="rounded-xl border border-red-500/25 bg-red-500/10 p-4 text-sm text-red-200">
+              {historyError}
+            </p>
           {:else if history.length === 0}
             <div class="flex h-full items-center justify-center text-sm text-slate-500">
-              No activity yet.
+              Move requests will appear here after you run the chess script in Roblox.
             </div>
           {:else}
             <div class="space-y-3">
-              {#each history as item (item.id)}
+              {#each [...history].reverse() as item (item.id)}
                 <article class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
                   <div class="flex items-start justify-between gap-3">
                     <div>
                       <p class="text-sm font-semibold text-slate-100">
-                        Best move: {item.best_move ?? 'Unknown'}
+                        {item.error
+                          ? 'Move request failed'
+                          : `Best move: ${item.best_move ?? 'None'}`}
                       </p>
                       <p class="mt-1 text-xs text-slate-500">
                         {new Date(item.timestamp).toLocaleTimeString()}
@@ -566,10 +642,15 @@
 
                   <div class="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-400">
                     <p>
-                      Delay: {item.difficulty?.recommended_delay_ms ?? '—'}ms
+                      Suggested pause: {item.difficulty
+                        ? `${item.difficulty.recommended_delay_ms} ms`
+                        : '—'}
                     </p>
                     <p>
-                      Time: {item.time_taken_ms ?? '—'}ms
+                      Calculation time: {item.time_taken_ms !== null &&
+                      item.time_taken_ms !== undefined
+                        ? `${item.time_taken_ms} ms`
+                        : '—'}
                     </p>
                   </div>
 
@@ -600,13 +681,20 @@
         </div>
       </div>
     {:else}
-      <SettingsPanel on:notify={(event) => showToast(event.detail.message, event.detail.type)} />
+      <SettingsPanel
+        engineBusy={setupBusy !== null || restarting}
+        on:notify={(event) => showToast(event.detail.message, event.detail.type)}
+      />
     {/if}
   </section>
 </div>
 
 {#if toast}
-  <div class="pointer-events-none fixed bottom-5 right-5 z-50">
+  <div
+    role="status"
+    aria-live="polite"
+    class="pointer-events-none fixed bottom-5 right-5 z-50 max-w-[min(32rem,90vw)]"
+  >
     <div
       class={`pointer-events-auto rounded-2xl border px-4 py-3 text-sm shadow-2xl ${
         toast.type === 'error'
@@ -619,6 +707,12 @@
       out:fade={{ duration: 100 }}
     >
       {toast.message}
+      <button
+        type="button"
+        aria-label="Dismiss notification"
+        class="ml-3 rounded px-2 py-1"
+        on:click={() => (toast = null)}>×</button
+      >
     </div>
   </div>
 {/if}

@@ -65,3 +65,28 @@ select {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+button:focus-visible {
+  outline: 2px solid #34d399;
+  outline-offset: 3px;
+}
+fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

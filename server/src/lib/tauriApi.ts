@@ -1,4 +1,11 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke as tauriInvoke, isTauri } from '@tauri-apps/api/core';
+
+function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  if (!isTauri()) {
+    return Promise.reject(new Error('Open the desktop app to connect to the local service.'));
+  }
+  return tauriInvoke<T>(command, args);
+}
 
 import type {
   AppConfig,
@@ -72,11 +79,11 @@ export function resetSettings() {
 }
 
 export function chooseSyzygyFolders() {
-  return invoke<GenericOkResponse>('choose_syzygy_folders');
+  return invoke<string[]>('choose_syzygy_folders');
 }
 
 export function clearSyzygyFolders() {
-  return invoke<GenericOkResponse>('clear_syzygy_folders');
+  return invoke<string[]>('clear_syzygy_folders');
 }
 
 export function getHistory() {

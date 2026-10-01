@@ -1,0 +1,41 @@
+globals:
+  require:
+    args:
+      - type: any
+  game.HttpGet:
+    method: true
+    args:
+      - type: string
+  getgenv:
+    args: []
+  getreg:
+    args: []
+  iscclosure:
+    args:
+      - type: function
+  debug.getregistry:
+    args: []
+  debug.getupvalues:
+    args:
+      - type: function
+  request:
+    args:
+      - type: table
+  http_request:
+    args:
+      - type: table
+  queue_on_teleport:
+    args:
+      - type: string
+  queueonteleport:
+    args:
+      - type: string
+  syn.queue_on_teleport:
+    args:
+      - type: string
+  syn.request:
+    args:
+      - type: table
+  http.request:
+    args:
+      - type: table

@@ -103,32 +103,19 @@ pub async fn save_settings(
     let restart_engine = request.restart_engine.unwrap_or(false);
 
     state
-        .config_store
-        .save(&request.config)
-        .map_err(|err| format!("Could not save settings: {err}"))?;
-
-    if restart_engine {
-        match state.engine.initialize_from_config().await {
-            Ok(()) => {
-                return Ok(GenericOkResponse {
-                    ok: true,
-                    message: "Settings saved and engine restarted.".to_string(),
-                });
-            }
-            Err(err) => {
-                return Ok(GenericOkResponse {
-                    ok: false,
-                    message: format!(
-                        "Settings were saved, but the engine could not restart: {err}"
-                    ),
-                });
-            }
-        }
-    }
+        .engine
+        .apply_config(request.config, restart_engine)
+        .await
+        .map_err(|err| format!("Could not apply settings: {err}"))?;
 
     Ok(GenericOkResponse {
         ok: true,
-        message: "Settings saved.".to_string(),
+        message: if restart_engine {
+            "Settings saved and engine restarted."
+        } else {
+            "Settings saved."
+        }
+        .to_string(),
     })
 }
 
@@ -283,7 +270,10 @@ pub async fn reset_recommended_settings(
         .load()
         .map_err(|err| format!("Could not load current settings: {err}"))?;
 
-    let mut recommended = AppConfig::default();
+    let mut recommended = AppConfig {
+        server: current.server,
+        ..AppConfig::default()
+    };
 
     // Preserve setup choices.
     recommended.engine.stockfish_path = current.engine.stockfish_path;
@@ -361,11 +351,27 @@ pub async fn get_history(state: State<'_, AppState>) -> Result<Vec<HistoryItem>,
 #[tauri::command]
 pub async fn test_connection(state: State<'_, AppState>) -> Result<GenericOkResponse, String> {
     let config = state.config_store.load_or_default();
-    Ok(GenericOkResponse {
-        ok: true,
-        message: format!(
-            "Local API is configured for {}:{}",
-            config.server.host, config.server.port
-        ),
+    let url = format!(
+        "http://{}/api/v1/status",
+        std::net::SocketAddr::new(config.server.host, config.server.port)
+    );
+    let result = reqwest::Client::new()
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(3))
+        .send()
+        .await;
+    Ok(match result {
+        Ok(response) if response.status().is_success() => GenericOkResponse {
+            ok: true,
+            message: format!("Local API is responding at {url}"),
+        },
+        Ok(response) => GenericOkResponse {
+            ok: false,
+            message: format!("Local API returned {} at {url}", response.status()),
+        },
+        Err(err) => GenericOkResponse {
+            ok: false,
+            message: format!("Could not connect to the local API: {err}"),
+        },
     })
 }

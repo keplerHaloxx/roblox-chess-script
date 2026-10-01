@@ -1,0 +1,11 @@
+{
+    "luau-lsp.sourcemap.autogenerate": true,
+    "luau-lsp.sourcemap.enabled": true,
+    "luau-lsp.sourcemap.rojoProjectFile": "default.project.json",
+    "luau-lsp.completion.imports.enabled": true,
+    "luau-lsp.completion.imports.suggestRequires": true,
+    "luau-lsp.completion.imports.stringRequires.enabled": true,
+    "luau-lsp.types.definitionFiles": [
+        "types/executor.d.luau"
+    ]
+}

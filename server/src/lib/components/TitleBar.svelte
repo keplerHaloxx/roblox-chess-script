@@ -1,13 +1,14 @@
 <script lang="ts">
+  import { isTauri } from '@tauri-apps/api/core';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { Minus, X } from 'lucide-svelte';
 
-  const appWindow = getCurrentWindow();
+  const appWindow = isTauri() ? getCurrentWindow() : null;
 
   function startDrag(event: MouseEvent) {
     const target = event.target as HTMLElement;
-    if (target.closest('button')) return;
-    appWindow.startDragging();
+    if (event.button !== 0 || target.closest('button') || !appWindow) return;
+    appWindow.startDragging().catch(console.error);
   }
 </script>
 
@@ -22,23 +23,25 @@
     <span class="text-sm font-semibold tracking-wide text-slate-100"> roblox-chess-script </span>
   </div>
 
-  <div class="flex items-center gap-1">
-    <button
-      type="button"
-      class="grid h-7 w-8 place-items-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-      aria-label="Minimize"
-      on:click={() => appWindow.minimize()}
-    >
-      <Minus size={15} />
-    </button>
+  {#if appWindow}
+    <div class="flex items-center gap-1">
+      <button
+        type="button"
+        class="grid h-7 w-8 place-items-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+        aria-label="Minimize"
+        on:click={() => appWindow?.minimize().catch(console.error)}
+      >
+        <Minus size={15} />
+      </button>
 
-    <button
-      type="button"
-      class="grid h-7 w-8 place-items-center rounded-md text-slate-400 hover:bg-red-500/20 hover:text-red-300"
-      aria-label="Close"
-      on:click={() => appWindow.close()}
-    >
-      <X size={15} />
-    </button>
-  </div>
+      <button
+        type="button"
+        class="grid h-7 w-8 place-items-center rounded-md text-slate-400 hover:bg-red-500/20 hover:text-red-300"
+        aria-label="Close"
+        on:click={() => appWindow?.close().catch(console.error)}
+      >
+        <X size={15} />
+      </button>
+    </div>
+  {/if}
 </header>

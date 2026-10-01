@@ -1,0 +1,12 @@
+{
+    "bundle": {
+        "require_mode": {
+            "name": "path",
+            "sources": {
+                "@modules": "./src/Modules",
+                "@src": "./src"
+            }
+        }
+    },
+    "rules": ["remove_types"]
+}

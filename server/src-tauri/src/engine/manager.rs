@@ -1,7 +1,7 @@
 use std::{
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicU64, Ordering},
         Arc, Mutex,
     },
     time::Instant,
@@ -51,6 +51,8 @@ impl EngineStatus {
 pub enum EngineManagerError {
     #[error("Stockfish is not configured. Use the dashboard to detect, choose, or download it.")]
     NotConfigured,
+    #[error("analysis was cancelled by a newer request or a cancellation command")]
+    Cancelled,
     #[error("invalid FEN")]
     InvalidFen,
     #[error("invalid request: {0}")]
@@ -73,6 +75,9 @@ impl EngineManagerError {
                 "engine_not_configured",
                 self.to_string(),
             ),
+            EngineManagerError::Cancelled => {
+                (StatusCode::CONFLICT, "analysis_cancelled", self.to_string())
+            }
             EngineManagerError::InvalidFen => (
                 StatusCode::BAD_REQUEST,
                 "invalid_fen",
@@ -111,13 +116,13 @@ impl EngineManagerError {
 #[derive(Clone)]
 pub struct EngineManager {
     inner: Arc<Mutex<ManagedEngine>>,
-    cancel_flag: Arc<AtomicBool>,
+    process: Arc<Mutex<Option<StockfishProcess>>>,
+    cancel_generation: Arc<AtomicU64>,
     install_lock: Arc<tokio::sync::Mutex<()>>,
     config_store: ConfigStore,
 }
 
 struct ManagedEngine {
-    process: Option<StockfishProcess>,
     status: EngineStatus,
     stockfish_path: Option<PathBuf>,
     name: Option<String>,
@@ -129,14 +134,14 @@ impl EngineManager {
     pub fn new(config_store: ConfigStore) -> Self {
         Self {
             inner: Arc::new(Mutex::new(ManagedEngine {
-                process: None,
                 status: EngineStatus::NotConfigured,
                 stockfish_path: None,
                 name: None,
                 last_error: None,
                 current_job_id: None,
             })),
-            cancel_flag: Arc::new(AtomicBool::new(false)),
+            process: Arc::new(Mutex::new(None)),
+            cancel_generation: Arc::new(AtomicU64::new(0)),
             install_lock: Arc::new(tokio::sync::Mutex::new(())),
             config_store,
         }
@@ -193,12 +198,9 @@ impl EngineManager {
         let _install_guard = self.install_lock.lock().await;
         let path = installer::download_latest_stockfish(&self.config_store.data_dir()).await?;
 
-        let mut config = self.config_store.load_or_default();
-        config.engine.stockfish_path = Some(path.display().to_string());
-        self.config_store
-            .save(&config)
-            .map_err(|err| EngineManagerError::InvalidRequest(err.to_string()))?;
-        self.start_with_path(path.clone(), &config).await?;
+        self.use_stockfish_path(path.clone())
+            .await
+            .map_err(EngineManagerError::InvalidRequest)?;
         Ok(path)
     }
 
@@ -210,10 +212,6 @@ impl EngineManager {
         config
             .validate()
             .map_err(EngineManagerError::InvalidRequest)?;
-        self.config_store
-            .save(&config)
-            .map_err(|err| EngineManagerError::InvalidRequest(err.to_string()))?;
-
         if restart_engine {
             let path = config
                 .engine
@@ -226,6 +224,9 @@ impl EngineManager {
             self.apply_engine_options(&config).await?;
         }
 
+        self.config_store
+            .save(&config)
+            .map_err(|err| EngineManagerError::InvalidRequest(err.to_string()))?;
         Ok(())
     }
 
@@ -245,38 +246,54 @@ impl EngineManager {
         validate_analyze_params(depth, max_think_time_ms)?;
         let features = position_features(&request.fen)?;
 
+        if config.engine.auto_restart && self.status().status == "crashed" {
+            self.restart().await?;
+        }
+
         if config.analysis.cancel_previous_on_new_request {
             self.cancel();
         }
-        self.cancel_flag.store(false, Ordering::SeqCst);
+        let generation = self.cancel_generation.load(Ordering::SeqCst);
 
         let inner = self.inner.clone();
-        let cancel_flag = self.cancel_flag.clone();
+        let cancel_generation = self.cancel_generation.clone();
+        let process = self.process.clone();
         let fen = request.fen.clone();
         let request_id_for_task = request_id.clone();
 
         let result = tokio::task::spawn_blocking(move || {
-            let mut inner = inner.lock().map_err(|_| EngineManagerError::LockPoisoned)?;
-            inner.current_job_id = Some(request_id_for_task);
-            inner.status = EngineStatus::Analyzing;
-            inner.last_error = None;
-
-            let process = inner
-                .process
+            let mut process_guard = process
+                .lock()
+                .map_err(|_| EngineManagerError::LockPoisoned)?;
+            if cancel_generation.load(Ordering::SeqCst) != generation {
+                return Err(EngineManagerError::Cancelled);
+            }
+            let process = process_guard
                 .as_mut()
                 .ok_or(EngineManagerError::NotConfigured)?;
-            process.new_game()?;
+            {
+                let mut inner = inner.lock().map_err(|_| EngineManagerError::LockPoisoned)?;
+                inner.current_job_id = Some(request_id_for_task);
+                inner.status = EngineStatus::Analyzing;
+                inner.last_error = None;
+            }
 
             let started = Instant::now();
-            let raw = process.analyze(&fen, depth, max_think_time_ms, disregard_think_time, || {
-                cancel_flag.load(Ordering::SeqCst)
+            let raw = process.new_game().and_then(|()| {
+                process.analyze(&fen, depth, max_think_time_ms, disregard_think_time, || {
+                    cancel_generation.load(Ordering::SeqCst) != generation
+                })
             });
             let time_taken_ms = started.elapsed().as_millis();
 
+            let mut inner = inner.lock().map_err(|_| EngineManagerError::LockPoisoned)?;
             match raw {
                 Ok(raw) => {
                     inner.status = EngineStatus::Ready;
                     inner.current_job_id = None;
+                    if cancel_generation.load(Ordering::SeqCst) != generation {
+                        return Err(EngineManagerError::Cancelled);
+                    }
                     Ok((
                         raw,
                         time_taken_ms,
@@ -285,7 +302,11 @@ impl EngineManager {
                     ))
                 }
                 Err(err) => {
-                    inner.status = EngineStatus::Error;
+                    if let Some(process) = process_guard.as_mut() {
+                        process.try_kill();
+                    }
+                    *process_guard = None;
+                    inner.status = EngineStatus::Crashed;
                     inner.current_job_id = None;
                     inner.last_error = Some(err.to_string());
                     Err(EngineManagerError::Stockfish(err))
@@ -326,7 +347,7 @@ impl EngineManager {
     }
 
     pub fn cancel(&self) {
-        self.cancel_flag.store(true, Ordering::SeqCst);
+        self.cancel_generation.fetch_add(1, Ordering::SeqCst);
     }
 
     pub fn status(&self) -> EngineStatusResponse {
@@ -358,11 +379,14 @@ impl EngineManager {
     ) -> Result<(), EngineManagerError> {
         let inner = self.inner.clone();
         let config = config.clone();
+        let process = self.process.clone();
+        self.cancel();
 
         tokio::task::spawn_blocking(move || {
+        let mut process_guard = process.lock().map_err(|_| EngineManagerError::LockPoisoned)?;
         {
             let mut inner = inner.lock().map_err(|_| EngineManagerError::LockPoisoned)?;
-            inner.status = if inner.process.is_some() {
+            inner.status = if process_guard.is_some() {
                 EngineStatus::Restarting
             } else {
                 EngineStatus::Starting
@@ -383,11 +407,11 @@ impl EngineManager {
 
                 let mut inner = inner.lock().map_err(|_| EngineManagerError::LockPoisoned)?;
 
-                if let Some(old_process) = inner.process.as_mut() {
+                if let Some(old_process) = process_guard.as_mut() {
                     old_process.try_kill();
                 }
 
-                inner.process = Some(new_process);
+                *process_guard = Some(new_process);
                 inner.stockfish_path = Some(path.clone());
                 inner.name = name;
                 inner.status = EngineStatus::Ready;
@@ -399,14 +423,14 @@ impl EngineManager {
             Err(err) => {
                 let mut inner = inner.lock().map_err(|_| EngineManagerError::LockPoisoned)?;
 
-                if inner.process.is_some() {
+                if process_guard.is_some() {
                     inner.status = EngineStatus::Ready;
                     inner.last_error = Some(format!(
                         "Could not switch to the new Stockfish at {}: {err}. Keeping the current engine.",
                         path.display()
                     ));
                 } else {
-                    inner.process = None;
+                    *process_guard = None;
                     inner.stockfish_path = Some(path.clone());
                     inner.name = None;
                     inner.status = EngineStatus::Error;
@@ -423,15 +447,15 @@ impl EngineManager {
     }
 
     async fn apply_engine_options(&self, config: &AppConfig) -> Result<(), EngineManagerError> {
-        let inner = self.inner.clone();
+        let process = self.process.clone();
         let config = config.clone();
         tokio::task::spawn_blocking(move || {
-            let mut inner = inner.lock().map_err(|_| EngineManagerError::LockPoisoned)?;
-            let process = inner
-                .process
-                .as_mut()
-                .ok_or(EngineManagerError::NotConfigured)?;
-            apply_options_to_process(process, &config)?;
+            let mut process_guard = process
+                .lock()
+                .map_err(|_| EngineManagerError::LockPoisoned)?;
+            if let Some(process) = process_guard.as_mut() {
+                apply_options_to_process(process, &config)?;
+            }
             Ok(())
         })
         .await
@@ -516,13 +540,13 @@ impl EngineManager {
 
         config.engine.stockfish_path = Some(path.display().to_string());
 
+        self.start_with_path(path.clone(), &config)
+            .await
+            .map_err(|err| format!("Stockfish could not be started: {err}"))?;
+
         self.config_store
             .save(&config)
             .map_err(|err| format!("Could not save Stockfish path: {err}"))?;
-
-        self.start_with_path(path.clone(), &config)
-            .await
-            .map_err(|err| format!("Stockfish was saved, but could not be started: {err}"))?;
 
         Ok(path)
     }
@@ -536,17 +560,15 @@ fn apply_options_to_process(
     process.set_option("Threads", &config.engine.threads.to_string())?;
     process.set_option("MultiPV", &config.engine.multipv.to_string())?;
 
-    if !config.engine.syzygy_paths.is_empty() {
-        let joined = config
-            .engine
-            .syzygy_paths
-            .join(if cfg!(target_os = "windows") {
-                ";"
-            } else {
-                ":"
-            });
-        process.set_option("SyzygyPath", &joined)?;
-    }
+    let joined = config
+        .engine
+        .syzygy_paths
+        .join(if cfg!(target_os = "windows") {
+            ";"
+        } else {
+            ":"
+        });
+    process.set_option("SyzygyPath", &joined)?;
 
     Ok(())
 }
@@ -580,4 +602,73 @@ fn position_features(fen: &str) -> Result<PositionFeatures, EngineManagerError> 
         legal_move_count: position.legal_moves().len(),
         in_check: position.is_check(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reported_check_positions_require_black_to_move() {
+        let placements = [
+            "r3kb1r/p2Q1ppp/2Pp4/4p3/p3P1n1/P1NPB1Pq/1P3P1P/R3K2R",
+            "r1b1kbnr/ppp2ppp/3p4/1B1Pp3/1n2P2q/2N1B3/PPP2PPP/R2QK1NR",
+        ];
+        for placement in placements {
+            assert!(position_features(&format!("{placement} w - - 0 1")).is_err());
+            let black_turn = position_features(&format!("{placement} b - - 0 1"))
+                .expect("reported position should be legal with Black to move");
+            assert!(black_turn.in_check);
+        }
+    }
+
+    #[test]
+    fn status_remains_available_while_process_is_locked() {
+        let dir = tempfile::tempdir().unwrap();
+        let store =
+            ConfigStore::from_paths(dir.path().join("config.json"), dir.path().join("data"))
+                .unwrap();
+        let manager = EngineManager::new(store);
+        let process_guard = manager.process.lock().unwrap();
+        let clone = manager.clone();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || sender.send(clone.status()).unwrap());
+        let result = receiver.recv_timeout(std::time::Duration::from_secs(1));
+        drop(process_guard);
+        worker.join().unwrap();
+        assert_eq!(result.unwrap().status, "not_configured");
+    }
+
+    #[tokio::test]
+    async fn cancelled_queued_request_never_starts() {
+        let dir = tempfile::tempdir().unwrap();
+        let store =
+            ConfigStore::from_paths(dir.path().join("config.json"), dir.path().join("data"))
+                .unwrap();
+        let manager = EngineManager::new(store);
+        let process = manager.process.clone();
+        let (acquired_sender, acquired_receiver) = std::sync::mpsc::channel();
+        let (release_sender, release_receiver) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let _guard = process.lock().unwrap();
+            acquired_sender.send(()).unwrap();
+            release_receiver.recv().unwrap();
+        });
+        acquired_receiver.recv().unwrap();
+        let clone = manager.clone();
+        let request: AnalyzeRequest = serde_json::from_value(serde_json::json!({
+            "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        }))
+        .unwrap();
+        let task = tokio::spawn(async move { clone.analyze(request).await });
+        tokio::task::yield_now().await;
+        manager.cancel();
+        release_sender.send(()).unwrap();
+        worker.join().unwrap();
+        assert!(matches!(
+            task.await.unwrap(),
+            Err(EngineManagerError::Cancelled)
+        ));
+        assert!(manager.status().current_job_id.is_none());
+    }
 }
