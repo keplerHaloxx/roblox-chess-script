@@ -14,6 +14,12 @@ local function loadModule(name, env)
 		if path == "../Types/Chess" or path == "../Types/Rayfield" then
 			return {}
 		end
+		if path == "./GameDispatcher" then
+			if env.dispatcherOverride then
+				return env.dispatcherOverride
+			end
+			return luau.load(fs.readFile("src/Modules/GameDispatcher.luau"), { environment = env })()
+		end
 		assert(path == "./Protocol", path)
 		return Protocol
 	end
@@ -112,6 +118,9 @@ local function boardFixture()
 end
 test("HTTP request uses colon JSON methods and preserves move alias", function()
 	local server = Server.new(function(request)
+		if string.match(request.Url, "/status$") then
+			return { StatusCode = 200, Body = '{"ok":true,"protocol_revision":1}' }
+		end
 		assert(request.Url == "http://127.0.0.1:57250/api/v1/analyze")
 		local body = serde.decode("json", request.Body)
 		assert(body.depth == 17 and body.max_think_time_ms == 100 and body.fen == "position")
@@ -125,7 +134,10 @@ test("Network failures and stale HTTP responses", function()
 		error("offline")
 	end):call("/status"))
 	local board = boardFixture()
-	local server = Server.new(function()
+	local server = Server.new(function(request)
+		if string.match(request.Url, "/status$") then
+			return { StatusCode = 200, Body = '{"ok":true,"protocol_revision":1}' }
+		end
 		board.fen = "new position"
 		return { StatusCode = 200, Body = '{"ok":true,"best_move":"e2e4"}' }
 	end)
@@ -137,7 +149,10 @@ test("Skinned piece geometry is not needed for analysis or highlighting", functi
 	function board:getWorkspacePiece()
 		error("Piece raycasts must not be required")
 	end
-	local server = Server.new(function()
+	local server = Server.new(function(request)
+		if string.match(request.Url, "/status$") then
+			return { StatusCode = 200, Body = '{"ok":true,"protocol_revision":1}' }
+		end
 		return { StatusCode = 200, Body = '{"ok":true,"best_move":"a7a8n"}' }
 	end)
 	local result = server:findBestMove(board, {})
@@ -351,10 +366,10 @@ test("Disabling automation during execution delay prevents clicking", function()
 	assert(board.clicks == 0 and not controller.busy)
 end)
 
-test("Promotion hands off without clicking and resumes after manual play", function()
+test("Suggestion-only promotion never clicks and resumes after manual play", function()
 	for _, promotion in ipairs({ "q", "r", "b", "n" }) do
 		local controller, board, server, _, options, step, _, messages = controllerFixture()
-		options.autoExecute = true
+		options.autoExecute = false
 		function server:findBestMove()
 			self.calls += 1
 			return {
@@ -376,6 +391,27 @@ test("Promotion hands off without clicking and resumes after manual play", funct
 		controller:tick()
 		step()
 		assert(server.calls == 2)
+	end
+end)
+test("Normal move execution promotes without an experimental setting", function()
+	for _, suffix in ipairs({ "q", "r", "b", "n" }) do
+		for _, automatic in ipairs({ false, true }) do
+			local controller, board, server, _, options, step, _, messages = controllerFixture()
+			options.autoExecute = true
+			function server:findBestMove()
+				self.calls += 1
+				return { success = true, move = "a7a8" .. suffix, promotion = suffix,
+					fromPos = { 8, 7 }, toPos = { 8, 8 }, fen = board.fen, match = board.match }
+			end
+			function board:autoMove(from, to, promotion)
+				assert(from[2] == 7 and to[2] == 8 and promotion == suffix)
+				self.clicks += 1
+				return true, "Promotion confirmed"
+			end
+			if automatic then controller:tick() else controller:run(true, false) end
+			step()
+			assert(board.clicks == 1 and messages.status == "Promotion confirmed")
+		end
 	end
 end)
 test("Board changes during delay prevent stale execution", function()
@@ -412,6 +448,65 @@ test("Timeout unlocks requests and old responses cannot unlock a newer job", fun
 	step()
 	step()
 	assert(not controller.busy)
+end)
+
+test("Board reconnects after teleport startup and skips unseated clients", function()
+	local player = {}
+	local now, scans = 0, 0
+	local entries = {}
+	local Board = loadModule("Board.luau", {
+		game = {
+			GetService = function(_, name)
+				return if name == "Players" then { LocalPlayer = player } else {}
+			end,
+		},
+		os = {
+			clock = function()
+				return now
+			end,
+		},
+		getreg = function()
+			scans += 1
+			return entries
+		end,
+		debug = {
+			getupvalues = function(fn)
+				return fn()
+			end,
+		},
+	})
+	local board = Board.new()
+	assert(not board:getBoard() and scans == 1)
+	local waiting = {
+		processRound = function()
+			return {}
+		end,
+	}
+	local match = { activeTeam = true, players = { [true] = player }, whitePieces = {}, blackPieces = {} }
+	local ready = {
+		processRound = function()
+			return {}
+		end,
+		currentMatch = match,
+	}
+	entries = {
+		function()
+			return { waiting }
+		end,
+		function()
+			return { ready }
+		end,
+	}
+	now = 0.5
+	assert(not board:getBoard() and scans == 1)
+	now = 1
+	assert(board:getBoard() == match and board.client == ready and board:isPlayerTurn())
+	assert(scans == 2)
+	now = 2
+	assert(board:getBoard() == match and scans == 2)
+	-- A lobby client discovered at startup must also yield to the ranked client.
+	board.client = waiting
+	assert(board:getBoard() == match and board.client == ready and scans == 3)
 end)
 
 test("Board FEN uses mirrored files and team ownership is checked directly", function()
@@ -554,7 +649,7 @@ test("Reported checking positions serialize the match turn, including bot games"
 end)
 
 -- These fixtures simulate the inferred game contract, not a verified live-game implementation.
-local function promotionFixture(team, targetFile)
+local function promotionFixture(team, targetFile, withChooser)
 	local player = {}
 	local now, clicks = 0, 0
 	local cancelled, throwOnDestination, applyPromotion = false, false, true
@@ -567,7 +662,18 @@ local function promotionFixture(team, targetFile)
 		return { move }
 	end
 	piece.getMoves = originalGetMoves
+	local promotionEnv = {}
+	local originalChooser = function()
+		error("The manual selector should not open")
+	end
+	if withChooser then
+		promotionEnv.doPromotionInterface = originalChooser
+	end
 	local Board = loadModule("Board.luau", {
+		getfenv = function()
+			return promotionEnv
+		end,
+		dispatcherOverride = { run = function(action) return pcall(action) end },
 		game = {
 			GetService = function(_, name)
 				return if name == "Players" then { LocalPlayer = player } else {}
@@ -608,6 +714,11 @@ local function promotionFixture(team, targetFile)
 				end
 				if applyPromotion then
 					local prepared = piece:getMoves()[1]
+					if withChooser then
+						local selectedPawn, selectedName = promotionEnv.doPromotionInterface(piece, prepared)
+						assert(selectedPawn == piece, "The selector must also return the original pawn")
+						prepared.promote.pieceName = selectedName
+					end
 					assert(prepared.promote and prepared.promote.pieceName)
 					piece.Name = prepared.promote.pieceName
 					piece.position = { x, y }
@@ -620,6 +731,8 @@ local function promotionFixture(team, targetFile)
 		piece = piece,
 		move = move,
 		originalGetMoves = originalGetMoves,
+		promotionEnv = promotionEnv,
+		originalChooser = originalChooser,
 		run = function(promotion)
 			return board:autoMove(from, destination, promotion, function()
 				return not cancelled
@@ -640,7 +753,21 @@ local function promotionFixture(team, targetFile)
 	}
 end
 
-test("Experimental promotion covers both colors, captures, and all four choices", function()
+test("Promotion selector returns the requested choice and is restored on success and failure", function()
+	for _, suffix in ipairs({ "q", "r", "b", "n" }) do
+		local fixture = promotionFixture(true, nil, true)
+		assert(fixture.run(suffix))
+		assert(fixture.promotionEnv.doPromotionInterface == fixture.originalChooser)
+		assert(fixture.piece.getMoves == fixture.originalGetMoves)
+	end
+	local fixture = promotionFixture(false, nil, true)
+	fixture.fail()
+	assert(not fixture.run("n"))
+	assert(fixture.promotionEnv.doPromotionInterface == fixture.originalChooser)
+	assert(fixture.piece.getMoves == fixture.originalGetMoves)
+end)
+
+test("Promotion covers both colors, captures, and all four choices", function()
 	local names = { q = "Queen", r = "Rook", b = "Bishop", n = "Knight" }
 	for _, team in ipairs({ true, false }) do
 		for _, file in ipairs({ 3, 4, 5 }) do
@@ -687,10 +814,9 @@ test("Promotion cancellation between clicks restores the hook", function()
 	assert(fixture.piece.getMoves == fixture.originalGetMoves)
 end)
 
-test("Unconfirmed experimental promotion stops automation without retrying", function()
+test("Unconfirmed promotion stops automation without retrying", function()
 	local controller, board, server, _, options, step, _, messages = controllerFixture()
 	options.autoExecute = true
-	options.experimentalPromotion = true
 	function server:findBestMove()
 		self.calls += 1
 		return { success = true, move = "a7a8q", promotion = "q", fen = board.fen, match = board.match }
@@ -712,6 +838,76 @@ test("Unconfirmed experimental promotion stops automation without retrying", fun
 end)
 
 -- Compile every runtime module and both distributable bundles without executing remote code.
+test("FEN preserves unmoved castling rights and current legal en-passant targets", function()
+	local player = {}
+	local Board = loadModule("Board.luau", {
+		game = { GetService = function(_, name) return if name == "Players" then { LocalPlayer = player } else {} end },
+		getreg = function() return {} end,
+		debug = { getupvalues = function() return {} end },
+	})
+	local function piece(name, team, x, y)
+		return { Name = name, team = team, position = { x, y }, unmoved = true, getMoves = function() return {} end }
+	end
+	local wk, wr, wq = piece("King", true, 4, 1), piece("Rook", true, 1, 1), piece("Rook", true, 8, 1)
+	local bk, br, bq = piece("King", false, 4, 8), piece("Rook", false, 1, 8), piece("Rook", false, 8, 8)
+	local pawn = piece("Pawn", true, 4, 5)
+	local match = { activeTeam = true, players = { [true] = player }, whitePieces = { wk, wr, wq, pawn }, blackPieces = { bk, br, bq } }
+	local board = Board.new()
+	board.client = { currentMatch = match }
+	assert(string.find(board:board2fen(), " w KQkq - ", 1, true))
+	wr.unmoved = false -- A rook returning home must not regain its right.
+	assert(string.find(board:board2fen(), " w Qkq - ", 1, true))
+	wk.unmoved = false
+	bq.position = nil -- Captured rook cannot grant a right.
+	assert(string.find(board:board2fen(), " w k - ", 1, true))
+	pawn.getMoves = function() return { { 5, 6, enpassant = { enemy = {} } } } end
+	assert(string.find(board:board2fen(), " w k d6 ", 1, true))
+	pawn.getMoves = function() return { { 5, 6 } } end
+	assert(string.find(board:board2fen(), " w k - ", 1, true))
+	match.activeTeam = false
+	local blackPawn = piece("Pawn", false, 4, 4)
+	blackPawn.getMoves = function() return { { 3, 3, enpassant = { enemy = {} } } } end
+	table.insert(match.blackPieces, blackPawn)
+	assert(string.find(board:board2fen(), " b k f3 ", 1, true))
+	match.players[false] = player
+	match.botInfo = { team = true }
+	assert(board:getLocalTeam() == "b" and board:isPlayerTurn())
+end)
+
+test("Game dispatcher restores hooks before executing and cancels or expires without submission", function()
+	local now, pending, restored, calls = 0, nil, 0, 0
+	local pump = true
+	local target = function() end
+	local env = {
+		game = { GetService = function() return { Heartbeat = {} } end },
+		getconnections = function() return { { Function = target } } end,
+		debug = { getconstants = function() return { "MovingPlatformsFolder" } end },
+		isfunctionhooked = function() return false end,
+		hookfunction = function(_, fn) pending = fn; return target end,
+		restorefunction = function() pending = nil; restored += 1 end,
+		os = { clock = function() return now end },
+		task = { wait = function(seconds)
+			now += seconds
+			if pump and pending then pending() end
+		end },
+	}
+	local D = loadModule("GameDispatcher.luau", env)
+	local function action()
+		assert(not pending, "Restore before running a potentially yielding tile handler")
+		calls += 1
+		return "submitted"
+	end
+	assert(D.run(action))
+	assert(calls == 1 and restored == 1)
+	local ok, reason = D.run(function() error("handler failure") end)
+	assert(not ok and string.find(reason, "handler failure") and restored == 2)
+	assert(not D.run(action, function() return false end))
+	assert(calls == 1 and restored == 3)
+	pump = false
+	assert(not D.run(action))
+	assert(calls == 1 and restored == 4 and not pending)
+end)
+
 test("All source files and bundles compile as Luau", function()
 	for _, folder in ipairs({ "Modules", "Types", "UI" }) do
 		for _, name in ipairs(fs.readDir("src/" .. folder)) do
@@ -746,6 +942,7 @@ local function uiEnvironment(placeId)
 		function window:CreateTab(tabProps)
 			assert(type(tabProps) == "table" and type(tabProps.name) == "string")
 			local tab = {}
+			function tab:CreateDivider() end
 			function tab:CreateGroup()
 				return self
 			end
@@ -794,6 +991,11 @@ local function uiEnvironment(placeId)
 		function window:Notify(props)
 			table.insert(notices, props)
 		end
+		function window:Popup(props)
+			window.popups = window.popups or {}
+			table.insert(window.popups, props)
+			return { Close = function() end }
+		end
 		table.insert(windows, window)
 		return window
 	end
@@ -828,9 +1030,8 @@ local function uiEnvironment(placeId)
 			GetService = function(_, name)
 				return services[name]
 			end,
-			HttpGet = function(_, url)
-				assert(url == "https://sirius.menu/gen2")
-				return "return library"
+			HttpGet = function()
+				error("Roblox HTTP must not be used")
 			end,
 		},
 		workspace = world,
@@ -848,15 +1049,21 @@ local function uiEnvironment(placeId)
 		queue_on_teleport = function(source)
 			table.insert(queued, source)
 		end,
-		request = function()
-			return { StatusCode = 200, Body = '{"ok":true,"engine":{"status":"ready"}}' }
+		request = function(request)
+			if request.Url == "https://sirius.menu/gen2" then
+				return { StatusCode = 200, Body = "return library" }
+			end
+			return { StatusCode = 200, Body = '{"ok":true,"protocol_revision":1,"engine":{"status":"ready"}}' }
 		end,
 		Color3 = {
 			fromRGB = function(r, g, b)
 				return { r = r, g = g, b = b }
 			end,
 		},
-		task = { spawn = function() end, delay = function() end },
+		task = { spawn = function(fn)
+			shared.spawned = shared.spawned or {}
+			table.insert(shared.spawned, fn)
+		end, delay = function() end },
 		Instance = {
 			new = function(kind)
 				local instance = {
@@ -878,6 +1085,36 @@ local function uiEnvironment(placeId)
 end
 
 for _, file in ipairs({ "dist/main.dev.lua", "dist/main.lua" }) do
+	test(file .. " incompatible-server popup has two actions and deduplicates", function()
+		local env, windows, _, _, _, shared = uiEnvironment(6222531507)
+		env.request = function(request)
+			if request.Url == "https://sirius.menu/gen2" then
+				return { StatusCode = 200, Body = "return library" }
+			end
+			return { StatusCode = 200, Body = '{"ok":true,"engine":{"status":"ready"}}' }
+		end
+		local copied
+		local clipboardFails = false
+		env.setclipboard = function(url)
+			assert(not clipboardFails, "Clipboard access unavailable")
+			copied = url
+		end
+		luau.load(fs.readFile(file), {environment = env})()
+		shared.spawned[1]() -- startup compatibility check, without entering the polling loop
+		local window = windows[1]
+		local popup = window.popups[1]
+		assert(popup.title == "Server update required" and #popup.options == 2)
+		assert(popup.options[1].text == "Dismiss" and not popup.options[1].callback)
+		popup.options[2].callback()
+		assert(popup.options[2].text == "Copy release link")
+		assert(copied == "https://github.com/keplerHaloxx/roblox-chess-script/releases/latest")
+		shared.spawned[1]()
+		assert(#window.popups == 1)
+		clipboardFails = true
+		popup.options[2].callback()
+		assert(window.popups[2].title == "Open the release page")
+		assert(string.find(window.popups[2].content, "https://github.com/keplerHaloxx/roblox-chess-script/releases/latest", 1, true))
+	end)
 	test(file .. " Gen2 UI, saved callbacks, reload and unload", function()
 		local env, windows, created, queued, notices, shared = uiEnvironment(6222531507)
 		local run = luau.load(fs.readFile(file), { environment = env })
@@ -936,6 +1173,55 @@ test("Wrong-game guard stops startup and Join queues re-execution", function()
 	assert(#windows == 0 and notices.native.Button1 == "Join")
 	notices.native.Callback.OnInvoke("Join")
 	assert(notices.teleported == 6222531507 and #queued == 1)
+end)
+
+test("Incompatible servers cannot receive analysis; upgrading recovers", function()
+	for _, revision in ipairs({ false, 0, 2, "1" }) do
+		local notices, analyses = 0, 0
+		local compatible = false
+		local server = Server.new(function(request)
+			if string.match(request.Url, "/status$") then
+				local data = { ok = true, server_version = "2.0.0" }
+				data.protocol_revision = if compatible then 1 else (if revision == false then nil else revision)
+				return { StatusCode = 200, Body = serde.encode("json", data) }
+			end
+			analyses += 1
+			return { StatusCode = 200, Body = '{"ok":true,"best_move":"e2e4"}' }
+		end)
+		server.onIncompatible = function() notices += 1 end
+		local result = server:findBestMove(boardFixture(), {})
+		assert(not result.success and result.code == "incompatible_server")
+		assert(notices == 1 and analyses == 0)
+		compatible = true
+		assert(server:findBestMove(boardFixture(), {}).success)
+		assert(analyses == 1)
+	end
+	assert(not Protocol.compatibilityError({protocol_revision = 1, server_version = "99.0.0"}))
+end)
+
+test("Teleport loader uses executor HTTP and rejects failed downloads", function()
+	local queued
+	local runtime = loadModule("Runtime.luau", {
+		queue_on_teleport = function(source) queued = source end,
+	})
+	assert(runtime.queueTeleport({teleportQueued = false}, "https://example.com/main.lua"))
+	local downloads, executions = 0, 0
+	local status = 200
+	local run = luau.load(queued, {environment = {
+		request = function(input)
+			assert(input.Url == "https://example.com/main.lua" and input.Method == "GET")
+			downloads += 1
+			return {StatusCode = status, Body = "client source"}
+		end,
+		loadstring = function(body)
+			assert(body == "client source")
+			return function() executions += 1 end
+		end,
+	}})
+	run()
+	assert(downloads == 1 and executions == 1)
+	status = 503
+	assert(not pcall(run) and executions == 1)
 end)
 
 print(`{passed} tests passed`)

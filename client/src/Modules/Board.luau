@@ -1,11 +1,13 @@
 --!strict
 local Types = require("../Types/Chess")
+local GameDispatcher = require("./GameDispatcher")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
 -- Registry entries can contain arbitrary closures; enumerating their signatures is not useful.
 type ExecutorDebug = { getregistry: (() -> { unknown })?, getupvalues: (((...any) -> ...any) -> { unknown })? }
+type PromotionEnvironment = { doPromotionInterface: ((...any) -> ...any)? }
 local executorDebug = (debug :: unknown) :: ExecutorDebug
 
 local Board = {}
@@ -39,6 +41,32 @@ local function getPieceAtPosition(board: Types.Match, position: Types.Position):
 	return nil
 end
 
+local function readMatch(client: Types.GameClient?): Types.Match?
+	if not client then
+		return nil
+	end
+	if client.currentMatch then
+		return client.currentMatch
+	end
+	local getUpvalues = executorDebug.getupvalues
+	if not getUpvalues or not client.processRound then
+		return nil
+	end
+	local ok, values = pcall(getUpvalues, client.processRound)
+	for _, value in pairs(if ok and type(values) == "table" then values else {}) do
+		if type(value) == "table" and value.tiles and value.boardExists then
+			return value :: Types.Match
+		end
+	end
+	return nil
+end
+
+local function hasLocalSeat(match: Types.Match?): boolean
+	return match ~= nil
+		and match.players ~= nil
+		and (match.players[true] == LocalPlayer or match.players[false] == LocalPlayer)
+end
+
 local function findClient(): Types.GameClient?
 	local registry = getreg or (debug and executorDebug.getregistry)
 	if type(registry) ~= "function" or type(executorDebug.getupvalues) ~= "function" then
@@ -48,24 +76,30 @@ local function findClient(): Types.GameClient?
 	if not ok or type(entries) ~= "table" then
 		return nil
 	end
+	local fallback: Types.GameClient? = nil
 	for _, fn in pairs(entries) do
 		if type(fn) == "function" and (not iscclosure or not iscclosure(fn)) then
 			local readable, values =
 				pcall(assert(executorDebug.getupvalues, "Executor upvalue inspection is unavailable"), fn)
 			for _, upvalue in pairs(if readable and type(values) == "table" then values else {}) do
 				if type(upvalue) == "table" and type(upvalue.processRound) == "function" then
-					return upvalue :: Types.GameClient
+					local candidate = upvalue :: Types.GameClient
+					if hasLocalSeat(readMatch(candidate)) then
+						return candidate
+					end
+					fallback = fallback or candidate
 				end
 			end
 		end
 	end
 
-	return nil
+	return fallback
 end
 
 function Board.new(): Types.Board
 	return {
 		client = findClient(),
+		lastDiscoveryAt = os.clock(),
 		refreshClient = Board.refreshClient,
 		getBoard = Board.getBoard,
 		isGameInProgress = Board.isGameInProgress,
@@ -82,31 +116,20 @@ function Board.new(): Types.Board
 end
 
 function Board.refreshClient(self: Types.Board): Types.GameClient?
+	self.lastDiscoveryAt = os.clock()
 	self.client = findClient()
 	return self.client
 end
 
 function Board.getBoard(self: Types.Board): Types.Match?
-	if self.client and self.client.currentMatch then
-		return self.client.currentMatch
+	local match = readMatch(self.client)
+	-- Teleport execution can precede the game client or ranked seat assignment.
+	-- Retry discovery without repeatedly scanning the registry on every board read.
+	if not hasLocalSeat(match) and os.clock() - (self.lastDiscoveryAt or 0) >= 1 then
+		self:refreshClient()
+		match = readMatch(self.client)
 	end
-
-	if not (self.client and self.client.processRound) then
-		return nil
-	end
-
-	local getUpvalues = executorDebug.getupvalues
-	if not getUpvalues then
-		return nil
-	end
-	local ok, values = pcall(getUpvalues, self.client.processRound)
-	for _, upvalue in pairs(if ok and type(values) == "table" then values else {}) do
-		if type(upvalue) == "table" and upvalue.tiles and upvalue.boardExists then
-			return upvalue :: Types.Match
-		end
-	end
-
-	return nil
+	return match
 end
 
 function Board.isGameInProgress(_self: Types.Board): boolean
@@ -130,7 +153,7 @@ function Board.getLocalTeam(self: Types.Board): Types.Team?
 	end
 
 	if self:isBotMatch() then
-		return "w"
+		return if board.botInfo and board.botInfo.team == true then "b" else "w"
 	end
 
 	local players: { [boolean]: Player } = board.players or {}
@@ -250,9 +273,39 @@ function Board.board2fen(self: Types.Board): string?
 	-- FEN describes the match, not the viewer's color. In bot games the local
 	-- player owns both seats, so deriving this from players always chose White.
 	local team = if match.activeTeam then "w" else "b"
-	-- The game adapter exposes placement and turn but no verified castling/en-passant history.
-	-- Preserve the TypeScript client's conservative treatment of those rights.
-	return table.concat(result, "/") .. " " .. team .. " - - 0 1"
+	-- Verified live: kings and rooks carry an unmoved flag. Files are mirrored:
+	-- e = 4, h = 1, a = 8. Rights survive blocked or attacked paths.
+	local rights = ""
+	for _, side in ipairs({ { white = true, rank = 1, rights = { "K", "Q" } }, { white = false, rank = 8, rights = { "k", "q" } } }) do
+		local white = side.white
+		local rank = side.rank
+		local king = getPieceAtPosition(match, { 4, rank })
+		if king and king.Name == "King" and king.team == white and king.unmoved == true then
+			for index, file in ipairs({ 1, 8 }) do
+				local rook = getPieceAtPosition(match, { file, rank })
+				if rook and rook.Name == "Rook" and rook.team == white and rook.unmoved == true then
+					rights ..= side.rights[index]
+				end
+			end
+		end
+	end
+	-- Use the game's current legal-move metadata, so an expired double step or
+	-- an en-passant capture exposing the king never reaches the engine.
+	local ep = "-"
+	local pieces = if match.activeTeam then match.whitePieces else match.blackPieces
+	for _, piece in pairs(pieces or {}) do
+		if piece.Name == "Pawn" then
+			local ok, moves = pcall(piece.getMoves, piece)
+			if ok then
+				for _, move in pairs(moves) do
+					if move.enpassant and move[1] >= 1 and move[1] <= 8 and (move[2] == 3 or move[2] == 6) then
+						ep = string.char(105 - move[1]) .. tostring(move[2])
+					end
+				end
+			end
+		end
+	end
+	return table.concat(result, "/") .. " " .. team .. " " .. (if rights == "" then "-" else rights) .. " " .. ep .. " 0 1"
 end
 
 function Board.hasLegalMove(_self: Types.Board, piece: Types.Piece, targetPosition: Types.Position): boolean
@@ -281,8 +334,8 @@ function Board.autoMove(
 	if stillCurrent and not stillCurrent() then
 		return false, "The position changed."
 	end
-	local client = self.client
 	local board = self:getBoard()
+	local client = self.client
 
 	if not client then
 		return false, "Client not found"
@@ -290,10 +343,6 @@ function Board.autoMove(
 
 	if not board then
 		return false, "Board not found"
-	end
-
-	if self:isBotMatch() then
-		return false, "AutoMove disabled in bot matches"
 	end
 
 	if not client.clickOnTile then
@@ -320,10 +369,12 @@ function Board.autoMove(
 	if not self:hasLegalMove(piece, toPosition) then
 		return false, "Illegal move"
 	end
-
 	local promotionNames: { [Types.Promotion]: string } = { q = "Queen", r = "Rook", b = "Bishop", n = "Knight" }
 	local requestedName = if promotion then promotionNames[promotion] else nil
 	local originalGetMoves = piece.getMoves
+	local promotionEnvironment: PromotionEnvironment? = nil
+	local originalPromotionChoice: ((...any) -> ...any)? = nil
+	local preparedPromotionChoice: ((...any) -> ...any)? = nil
 	local preparedGetMoves: ((Types.Piece) -> { Types.GameMove })? = nil
 	if requestedName then
 		if piece.Name ~= "Pawn" or (toPosition[2] ~= 1 and toPosition[2] ~= 8) then
@@ -336,7 +387,7 @@ function Board.autoMove(
 			end
 		end
 		if not hasPromotionMetadata then
-			return false, "Promotion experiment stopped: the legal move has no promote metadata. Play manually."
+			return false, "Promotion stopped: the legal move has no promotion metadata. Play manually."
 		end
 		-- Hypothesis: clickOnTile reads getMoves() to build the move it sends.
 		-- Clone matching moves, retaining special fields, and fill the known pieceName slot.
@@ -357,9 +408,25 @@ function Board.autoMove(
 			return moves
 		end
 		piece.getMoves = assert(preparedGetMoves, "Promotion move provider was not prepared")
+		-- Verified live: the selector returns (pawn, pieceName). The tile handler
+		-- uses both values; returning only a name loses the pawn reference.
+		local environment = (getfenv(assert(client.clickOnTile)) :: unknown) :: PromotionEnvironment
+		if type(environment.doPromotionInterface) == "function" then
+			promotionEnvironment = environment
+			originalPromotionChoice = environment.doPromotionInterface
+			preparedPromotionChoice = function(currentPiece: Types.Piece, move: Types.GameMove): (Types.Piece, string)
+				if currentPiece ~= piece or not samePosition(move, toPosition) then
+					return assert(originalPromotionChoice)(currentPiece, move)
+				end
+				-- Only the pending promotion consumes this override.
+				environment.doPromotionInterface = originalPromotionChoice
+				return currentPiece, assert(requestedName)
+			end
+			environment.doPromotionInterface = preparedPromotionChoice
+		end
 	end
 
-	local completed, message = pcall(function(): string
+	local function performClicks(): string
 		local clickOnTile = assert(client.clickOnTile, "The game tile handler is unavailable")
 		clickOnTile(client, fromPosition[1], fromPosition[2])
 		task.wait(0.15)
@@ -371,9 +438,22 @@ function Board.autoMove(
 		end
 		clickOnTile(client, toPosition[1], toPosition[2])
 		return "Move attempted"
+	end
+	local completed, message = pcall(function(): string
+		if self:isBotMatch() or promotionEnvironment then
+			local ok, result = GameDispatcher.run(performClicks, stillCurrent)
+			if not ok then
+				error(result, 0)
+			end
+			return result
+		end
+		return performClicks()
 	end)
 	if preparedGetMoves and piece.getMoves == preparedGetMoves then
 		piece.getMoves = originalGetMoves
+	end
+	if promotionEnvironment and promotionEnvironment.doPromotionInterface == preparedPromotionChoice then
+		promotionEnvironment.doPromotionInterface = originalPromotionChoice
 	end
 	if not completed then
 		return false, "Tile click failed: " .. tostring(message)
@@ -401,12 +481,12 @@ function Board.autoMove(
 					.. promoted.Name
 					.. " instead of "
 					.. requestedName
-					.. ". Disable Experimental promotion."
+					.. ". Check the board before continuing."
 		end
 		task.wait(0.1)
 	until os.clock() >= deadline
 	return false,
-		"Promotion was not confirmed. Check the selector or board, and disable Experimental promotion before retrying."
+		"Promotion was not confirmed. Check the selector or board before retrying."
 end
 
 return Board

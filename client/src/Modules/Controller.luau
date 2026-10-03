@@ -67,10 +67,6 @@ local function retryPosition(self: Controller): ()
 end
 
 local function executeMove(self: Controller, result: Types.MoveSuccess, version: number, automatic: boolean): ()
-	if self.board:isBotMatch() then
-		self.emit("output", `Best move: {result.move}. Auto execute is disabled in bot matches.`)
-		return
-	end
 	local delayMs = Protocol.delayMs(result.difficulty, self.options.useCalculatedDelay, self.options.executeDelay)
 	self.emit("status", `Waiting {delayMs} ms before moving…`)
 	self.requestPhase = "Waiting before moving…"
@@ -139,7 +135,7 @@ local function analyzePosition(self: Controller, version: number, autoExecute: b
 	self.highlightedFen = result.fen
 	self.lastAnalyzedFen = result.fen
 	self.lastMatch = result.match
-	if result.promotion and (not autoExecute or not self.options.experimentalPromotion) then
+	if result.promotion and not autoExecute then
 		self.emit("status", "Promotion: manual move required")
 		self.emit(
 			"instruction",
@@ -268,9 +264,7 @@ function Controller.tick(self: Controller): ()
 	if not playerTurn then
 		self.lastAnalyzedFen = nil
 	end
-	local status = if playing and self.board:isBotMatch()
-		then "⚠ Bot match detected — automatic moves unavailable. Suggestions still work."
-		elseif not self.options.autoCalculate then "Inactive"
+	local status = if not self.options.autoCalculate then "Inactive"
 		elseif not playing then "Waiting for a match"
 		elseif not playerTurn then "Waiting for your turn"
 		elseif self.busy then self.requestPhase or "Calculating or moving…"

@@ -1,6 +1,15 @@
 --!strict
 local Types = require("../Types/Chess")
 local Protocol = {}
+Protocol.REQUIRED_REVISION = 1
+
+function Protocol.compatibilityError(data: { [string]: unknown }): string?
+	if data.protocol_revision == Protocol.REQUIRED_REVISION then
+		return nil
+	end
+	local version = if type(data.server_version) == "string" then data.server_version else "unknown (older build)"
+	return `The desktop server ({version}) is incompatible with this client. Download the latest server and restart it. Analysis is paused until a compatible server is running.`
+end
 
 --- Convert UCI notation into the game's mirrored board coordinates.
 function Protocol.parseMove(move: unknown): (Types.ParsedMove?, string?)

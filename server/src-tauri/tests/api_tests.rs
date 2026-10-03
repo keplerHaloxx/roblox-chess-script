@@ -53,6 +53,8 @@ async fn status_endpoint_returns_default_not_configured_state() {
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(value["ok"], true);
+    assert_eq!(value["server_version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(value["protocol_revision"], 1);
     assert_eq!(value["engine"]["status"], "not_configured");
     assert_eq!(value["config"]["server"]["port"], 57250);
 }

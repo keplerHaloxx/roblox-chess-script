@@ -44,8 +44,14 @@ if game.PlaceId ~= CHESS_PLACE_ID then
 end
 
 local loaded, Rayfield = pcall(function()
-	local executorGame = (game :: unknown) :: { HttpGet: (self: DataModel, url: string) -> string }
-	local source = executorGame.HttpGet(game, "https://sirius.menu/gen2")
+	assert(httpRequest, "Your executor needs request or http_request to download the UI.")
+	local response = httpRequest({ Url = "https://sirius.menu/gen2", Method = "GET", Headers = {} })
+	assert(type(response) == "table", "The UI download returned an invalid response.")
+	local envelope = response :: { [string]: unknown }
+	local status = tonumber(envelope.StatusCode)
+	assert(envelope.Success ~= false and status and status >= 200 and status < 300, "The UI download failed.")
+	local source = envelope.Body
+	assert(type(source) == "string" and source ~= "", "The UI download returned an empty response.")
 	local chunk, reason = loadstring(source)
 	assert(chunk, reason)
 	return chunk()
@@ -81,6 +87,42 @@ local engineTab = window:CreateTab({ name = "⚙ Engine" })
 local themeTab = window:CreateTab({ name = "🎨 Appearance" })
 local board = Board.new()
 local server = ChessServer.new(httpRequest)
+local warnedAboutCompatibility = false
+server.onIncompatible = function(message: string)
+	if warnedAboutCompatibility or window.unloaded then
+		return
+	end
+	warnedAboutCompatibility = true
+	local popup: RayfieldTypes.PopupProps = {
+		title = "Server update required",
+		content = message,
+		options = {
+			{ text = "Dismiss" },
+			{
+				text = "Copy release link",
+				callback = function()
+					local ok = pcall(function()
+						assert(setclipboard, "Clipboard access unavailable")
+						setclipboard("https://github.com/keplerHaloxx/roblox-chess-script/releases/latest")
+					end)
+					if ok then
+						window:Notify({
+							title = "Release link copied",
+							content = "Paste it into your browser to download the latest server.",
+						})
+					else
+						window:Popup({
+							title = "Open the release page",
+							content = "Your executor could not copy the link. Open this address:\nhttps://github.com/keplerHaloxx/roblox-chess-script/releases/latest",
+							options = { { text = "Dismiss" } },
+						})
+					end
+				end,
+			},
+		},
+	}
+	window:Popup(popup)
+end
 local highlighter = Highlighter.new()
 local session: Types.Session = { stopped = false, cleanup = function() end }
 local statusView = StatusView.new(mainTab, autoTab, function(): boolean
@@ -107,6 +149,13 @@ function session.cleanup()
 end
 runtimeState.session = session
 
+task.spawn(function()
+	local _, reason = server:call("/status")
+	if reason and not session.stopped then
+		emit("output", reason)
+	end
+end)
+
 Controls.build({
 	window = window,
 	mainTab = mainTab,
@@ -131,7 +180,7 @@ end
 if not board.client then
 	emit(
 		"output",
-		"Board client not found. Join a match and use Refresh board. Your executor needs getreg and debug.getupvalues."
+		"Waiting for the board client to load; reconnecting automatically. Your executor needs getreg and debug.getupvalues."
 	)
 end
 if type(httpRequest) ~= "function" then

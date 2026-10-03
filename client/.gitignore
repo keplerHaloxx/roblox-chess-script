@@ -11,3 +11,6 @@ sourcemap.json
 /.tools/
 
 /dist
+
+# Local client documentation
+/README.md

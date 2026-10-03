@@ -156,13 +156,6 @@ function Controls.build(context: Context): ()
 	engineTab:CreateButton({ name = "Close chess assistant", callback = session.cleanup })
 
 	autoTab:CreateSection({ name = "Automation" })
-	autoTab:CreateText({
-		name = "⚠ Auto Play limitations",
-		text = "Bot matches: automatic moves are unavailable.\nCastling & en passant: play these moves manually.\nPromotion: promote the pawn manually.",
-	})
-
-	autoTab:CreateDivider()
-
 	local autoCalculateToggle = autoTab:CreateToggle({
 		name = "Auto calculate",
 		flag = "AutoCalculate",

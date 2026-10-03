@@ -5,12 +5,13 @@ export type Team = "w" | "b"
 export type Promotion = "q" | "r" | "b" | "n"
 export type PieceName = "Pawn" | "Knight" | "Bishop" | "Rook" | "Queen" | "King"
 export type PromotionMetadata = { pieceName: string? }
-export type GameMove = { [number]: number, promote: PromotionMetadata? }
+export type GameMove = { [number]: number, promote: PromotionMetadata?, enpassant: unknown? }
 export type Piece = {
 	Name: string,
 	team: boolean,
 	position: Position?,
 	getMoves: (self: Piece) -> { GameMove },
+	unmoved: boolean?,
 }
 export type Match = {
 	whitePieces: { Piece }?,
@@ -19,6 +20,7 @@ export type Match = {
 	activeTeam: boolean,
 	tiles: unknown,
 	boardExists: boolean?,
+	botInfo: { team: boolean }?,
 }
 export type GameClient = {
 	currentMatch: Match?,
@@ -28,6 +30,7 @@ export type GameClient = {
 }
 export type BoardMap = { [number]: { [number]: string } }
 export type Board = {
+	lastDiscoveryAt: number?,
 	client: GameClient?,
 	refreshClient: (self: Board) -> GameClient?,
 	getBoard: (self: Board) -> Match?,
@@ -56,7 +59,6 @@ export type Settings = {
 	disregardTime: boolean,
 	autoCalculate: boolean,
 	autoExecute: boolean,
-	experimentalPromotion: boolean,
 	executeDelay: number,
 	useCalculatedDelay: boolean,
 	fillColor: Color3,
@@ -87,6 +89,7 @@ export type MoveFailure = { success: false, reason: string, code: string? }
 export type MoveResult = MoveSuccess | MoveFailure
 export type Server = {
 	request: Request?,
+	onIncompatible: ((string) -> ())?,
 	call: (self: Server, path: string, payload: AnalysisRequest?) -> ({ [string]: unknown }?, string?, string?),
 	findBestMove: (self: Server, board: Board, settings: Settings) -> MoveResult,
 }

@@ -2,3 +2,4 @@
 /.local-backups/
 /release/
 /.pnpm-store/
+/docs

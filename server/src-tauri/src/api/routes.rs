@@ -34,6 +34,8 @@ async fn status(State(state): State<AppState>) -> Result<Json<StatusResponse>, A
     let config = state.config_store.load_or_default();
     Ok(Json(StatusResponse {
         ok: true,
+        server_version: env!("CARGO_PKG_VERSION"),
+        protocol_revision: 1,
         engine: state.engine.status(),
         config,
         config_path: state.config_store.config_path().display().to_string(),

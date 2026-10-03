@@ -25,7 +25,19 @@ function Runtime.queueTeleport(state: Types.RuntimeState, scriptUrl: string): bo
 	if not queue then
 		return false
 	end
-	local success = pcall(queue, `loadstring(game:HttpGet("{scriptUrl}"))()`)
+	local loader = string.format([[
+local fetch = request or http_request or (syn and syn.request) or (http and http.request)
+assert(fetch, "Your executor needs request or http_request.")
+local response = fetch({Url = %q, Method = "GET"})
+assert(type(response) == "table", "Invalid client download response.")
+local status = tonumber(response.StatusCode)
+assert(response.Success ~= false and status and status >= 200 and status < 300, "Client download failed.")
+assert(type(response.Body) == "string" and response.Body ~= "", "Empty client download.")
+local chunk, reason = loadstring(response.Body)
+assert(chunk, reason)
+chunk()
+]], scriptUrl)
+	local success = pcall(queue, loader)
 	state.teleportQueued = success
 	return success
 end

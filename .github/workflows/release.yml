@@ -1,0 +1,103 @@
+name: Prepare draft release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version matching all server manifests (for example 2.0.1)"
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          if ($env:RELEASE_VERSION -notmatch '^\d+\.\d+\.\d+$') { throw 'Use a stable X.Y.Z version.' }
+          $package = Get-Content server/package.json -Raw | ConvertFrom-Json
+          $tauri = Get-Content server/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $cargo = Get-Content server/src-tauri/Cargo.toml -Raw
+          $cargoVersion = [regex]::Match($cargo, '(?m)^version = "([^"]+)"').Groups[1].Value
+          $lock = Get-Content server/src-tauri/Cargo.lock -Raw
+          $lockVersion = [regex]::Match($lock, '(?m)^name = "roblox-chess-script"\r?\nversion = "([^"]+)"').Groups[1].Value
+          if ($package.version -ne $env:RELEASE_VERSION -or $tauri.version -ne $env:RELEASE_VERSION -or $cargoVersion -ne $env:RELEASE_VERSION -or $lockVersion -ne $env:RELEASE_VERSION) {
+            throw 'Update package.json, tauri.conf.json, Cargo.toml and Cargo.lock before releasing.'
+          }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: jdx/mise-action@v4
+        with:
+          working_directory: client
+      - name: Verify and bundle client
+        working-directory: client
+        run: |
+          mise run typecheck
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          mise run bundle-dev
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          mise run bundle-prod
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          mise run test
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Verify server
+        working-directory: server
+        run: |
+          pnpm install --frozen-lockfile
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          pnpm quality
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Build desktop app
+        working-directory: server
+        run: |
+          pnpm tauri build --ci --no-bundle -- --locked
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Stage release files
+        run: |
+          New-Item -ItemType Directory release-assets | Out-Null
+          Copy-Item client/dist/main.lua release-assets/main.lua
+          Copy-Item server/src-tauri/target/release/roblox-chess-script.exe release-assets/roblox-chess-script.exe
+          $checksums = Get-ChildItem release-assets -File | ForEach-Object {
+            '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name
+          }
+          $checksums | Set-Content release-assets/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: release-assets/*
+          if-no-files-found: error
+  draft:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: release-assets
+      - name: Create unpublished draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          gh release create "v${RELEASE_VERSION}" release-assets/* \
+            --draft --target "$RELEASE_COMMIT" --title "v${RELEASE_VERSION}" --generate-notes

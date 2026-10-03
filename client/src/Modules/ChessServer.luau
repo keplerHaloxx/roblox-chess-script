@@ -18,6 +18,12 @@ function ChessServer.call(
 	payload: Types.AnalysisRequest?
 ): ({ [string]: unknown }?, string?, string?)
 	local requestFunction = self.request
+	if path == "/analyze" then
+		local status, reason, code = self:call("/status")
+		if not status then
+			return nil, reason, code
+		end
+	end
 	if not requestFunction then
 		return nil, "Your executor does not provide an HTTP request function.", nil
 	end
@@ -32,9 +38,19 @@ function ChessServer.call(
 	if not ok then
 		return nil, "Cannot reach the chess server. Open the desktop app and try again. " .. tostring(response), nil
 	end
-	return Protocol.decodeResponse(response, function(body)
+	local data, reason, code = Protocol.decodeResponse(response, function(body)
 		return HttpService:JSONDecode(body)
 	end)
+	if data and path == "/status" then
+		local compatibilityError = Protocol.compatibilityError(data)
+		if compatibilityError then
+			if self.onIncompatible then
+				self.onIncompatible(compatibilityError)
+			end
+			return nil, compatibilityError, "incompatible_server"
+		end
+	end
+	return data, reason, code
 end
 
 function ChessServer.findBestMove(self: Server, board: Types.Board, options: Types.Settings): Types.MoveResult

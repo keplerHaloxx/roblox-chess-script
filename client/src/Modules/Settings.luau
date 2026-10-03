@@ -8,7 +8,6 @@ function Settings.defaults(): Types.Settings
 		disregardTime = false,
 		autoCalculate = false,
 		autoExecute = false,
-		experimentalPromotion = false,
 		executeDelay = 300,
 		useCalculatedDelay = false,
 		fillColor = Color3.fromRGB(59, 235, 223),

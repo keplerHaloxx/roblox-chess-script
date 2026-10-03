@@ -45,6 +45,8 @@ pub struct EngineSummary {
 #[derive(Debug, Clone, Serialize)]
 pub struct StatusResponse {
     pub ok: bool,
+    pub server_version: &'static str,
+    pub protocol_revision: u32,
     pub engine: EngineStatusResponse,
     pub config: AppConfig,
     pub config_path: String,
