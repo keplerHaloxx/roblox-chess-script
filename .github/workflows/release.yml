@@ -42,6 +42,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "server/src-tauri -> target"
       - uses: jdx/mise-action@v4
         with:
           working_directory: client
